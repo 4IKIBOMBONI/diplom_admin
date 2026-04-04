@@ -1,0 +1,122 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum TicketSource {
+  WEB
+  TELEGRAM
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  email            String?  @unique
+  phone            String?
+  password         String?
+  fullName         String
+  role             Role     @default(USER)
+  telegramId       String?  @unique
+  telegramUsername  String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  createdTickets  Ticket[]        @relation("TicketCreator")
+  assignedTickets Ticket[]        @relation("TicketAssignee")
+  comments        Comment[]
+  statusChanges   StatusHistory[]
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  tickets     Ticket[]
+}
+
+model Ticket {
+  id          Int            @id @default(autoincrement())
+  title       String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  source      TicketSource   @default(WEB)
+  location    String?
+
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  creatorId Int
+  creator   User @relation("TicketCreator", fields: [creatorId], references: [id])
+
+  assigneeId Int?
+  assignee   User? @relation("TicketAssignee", fields: [assigneeId], references: [id])
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+
+  comments      Comment[]
+  statusHistory StatusHistory[]
+}
+
+model Comment {
+  id         Int      @id @default(autoincrement())
+  text       String
+  isInternal Boolean  @default(false)
+
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model StatusHistory {
+  id        Int           @id @default(autoincrement())
+  oldStatus TicketStatus?
+  newStatus TicketStatus
+
+  ticketId Int
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  changedById Int
+  changedBy   User @relation(fields: [changedById], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
