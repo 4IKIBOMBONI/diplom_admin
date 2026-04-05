@@ -4,10 +4,25 @@ const { startHandler } = require('./handlers/start');
 const { newTicketHandler, handleTicketStep } = require('./handlers/newTicket');
 const { statusHandler } = require('./handlers/status');
 const { getMainKeyboard } = require('./keyboards');
+const fs = require('fs');
+const path = require('path');
+
+// Logging
+const logFile = path.resolve(__dirname, '../bot.log');
+function log(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  console.log(line);
+  fs.appendFileSync(logFile, line + '\n');
+}
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
+const apiUrl = process.env.API_URL;
+
+log(`Bot starting. API_URL=${apiUrl}`);
+log(`TELEGRAM_BOT_TOKEN=${token ? token.substring(0, 10) + '...' : 'NOT SET'}`);
+
 if (!token) {
-  console.error('TELEGRAM_BOT_TOKEN is not set');
+  log('ERROR: TELEGRAM_BOT_TOKEN is not set');
   process.exit(1);
 }
 
@@ -17,13 +32,17 @@ const bot = new TelegramBot(token, { polling: true });
 const sessions = new Map();
 global.botSessions = sessions;
 
-bot.onText(/\/start/, (msg) => startHandler(bot, msg, sessions));
+bot.onText(/\/start/, (msg) => {
+  log(`/start from user ${msg.from.id} (${msg.from.first_name})`);
+  startHandler(bot, msg, sessions);
+});
 
 bot.on('callback_query', async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
   await bot.answerCallbackQuery(query.id);
+  log(`callback_query: ${data} from chat ${chatId}`);
 
   if (data === 'new_ticket') {
     return newTicketHandler(bot, chatId, sessions);
@@ -50,7 +69,6 @@ bot.on('callback_query', async (query) => {
     return statusHandler(bot, chatId);
   }
 
-  // Ticket creation flow: category selection
   if (data.startsWith('cat_')) {
     const session = sessions.get(chatId);
     if (session && session.step === 'category') {
@@ -61,9 +79,11 @@ bot.on('callback_query', async (query) => {
   }
 });
 
-bot.onText(/\/status/, (msg) => statusHandler(bot, msg.chat.id));
+bot.onText(/\/status/, (msg) => {
+  log(`/status from user ${msg.from.id}`);
+  statusHandler(bot, msg.chat.id);
+});
 
-// Handle text messages for ticket creation flow
 bot.on('message', (msg) => {
   if (msg.text && msg.text.startsWith('/')) return;
 
@@ -71,7 +91,8 @@ bot.on('message', (msg) => {
   const session = sessions.get(chatId);
   if (!session) return;
 
+  log(`message from chat ${chatId}: "${msg.text}"`);
   handleTicketStep(bot, chatId, msg.text, sessions);
 });
 
-console.log('Telegram bot started');
+log('Telegram bot started');

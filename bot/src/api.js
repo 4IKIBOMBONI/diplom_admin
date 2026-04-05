@@ -1,47 +1,59 @@
 const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+
+const logFile = path.resolve(__dirname, '../bot.log');
+function log(msg) {
+  const line = `[${new Date().toISOString()}] ${msg}`;
+  console.log(line);
+  fs.appendFileSync(logFile, line + '\n');
+}
 
 const API_URL = process.env.API_URL || 'http://localhost:5000/api';
+log(`API client initialized. BASE_URL=${API_URL}`);
 
 const apiClient = axios.create({
   baseURL: API_URL,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Register or get user by telegram ID
 const findOrCreateUser = async (telegramId, telegramUsername, fullName) => {
   try {
-    // Try to find user by telegramId via a special bot endpoint
+    const url = `${API_URL}/auth/telegram`;
+    log(`POST ${url} telegramId=${telegramId}`);
     const { data } = await apiClient.post('/auth/telegram', {
       telegramId: String(telegramId),
       telegramUsername,
       fullName,
     });
+    log(`findOrCreateUser OK: userId=${data.user?.id}`);
     return data;
   } catch (error) {
-    console.error('API error (findOrCreateUser):', error.response?.data || error.message);
+    log(`findOrCreateUser ERROR: status=${error.response?.status} data=${JSON.stringify(error.response?.data)} msg=${error.message}`);
     return null;
   }
 };
 
 const getCategories = async () => {
   try {
-    // Public categories endpoint for bot
     const { data } = await apiClient.get('/categories/public');
     return data;
   } catch (error) {
-    console.error('API error (getCategories):', error.response?.data || error.message);
+    log(`getCategories ERROR: ${error.response?.status} ${error.message}`);
     return [];
   }
 };
 
 const createTicket = async (token, ticketData) => {
   try {
+    log(`POST /tickets ${JSON.stringify(ticketData)}`);
     const { data } = await apiClient.post('/tickets', ticketData, {
       headers: { Authorization: `Bearer ${token}` },
     });
+    log(`createTicket OK: ticketId=${data.id}`);
     return data;
   } catch (error) {
-    console.error('API error (createTicket):', error.response?.data || error.message);
+    log(`createTicket ERROR: ${error.response?.status} ${JSON.stringify(error.response?.data)}`);
     return null;
   }
 };
@@ -53,7 +65,7 @@ const getUserTickets = async (token) => {
     });
     return data.tickets || [];
   } catch (error) {
-    console.error('API error (getUserTickets):', error.response?.data || error.message);
+    log(`getUserTickets ERROR: ${error.response?.status} ${error.message}`);
     return [];
   }
 };
