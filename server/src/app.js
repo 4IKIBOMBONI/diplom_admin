@@ -25,7 +25,19 @@ app.set('prisma', prisma);
 // Middleware
 app.use(helmet());
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (bots, server-to-server, curl)
+    if (!origin) return callback(null, true);
+    const allowedOrigins = [
+      process.env.CLIENT_URL || 'http://localhost:5173',
+      'http://localhost:5173',
+      'http://localhost:3001',
+    ];
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(null, true);
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -36,6 +48,14 @@ app.use((req, res, next) => {
   req.io = io;
   next();
 });
+
+// Log incoming requests in development
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    logger.debug(`${req.method} ${req.url}`);
+    next();
+  });
+}
 
 // Routes
 app.use('/api/auth', authRoutes);
