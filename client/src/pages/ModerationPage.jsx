@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../services/api';
 import PriorityBadge from '../components/UI/PriorityBadge';
 import { formatDate } from '../utils/constants';
@@ -76,7 +77,7 @@ export default function ModerationPage() {
                         {t.source === 'TELEGRAM' ? 'Telegram' : 'Веб-форма'}
                       </span>
                     </div>
-                    <h3 className="text-sm font-semibold text-gray-800 mb-1">{t.title}</h3>
+                    <Link to={`/tickets/${t.id}`} className="text-sm font-semibold text-primary-600 hover:text-primary-700 hover:underline mb-1 block">{t.title}</Link>
                     <p className="text-sm text-gray-600 mb-2 line-clamp-2">{t.description}</p>
                     <div className="flex items-center gap-4 text-xs text-gray-400">
                       <span>Автор: {t.creator?.fullName}</span>

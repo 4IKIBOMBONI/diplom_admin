@@ -20,6 +20,7 @@ export default function TicketDetailPage() {
   const [isInternal, setIsInternal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [admins, setAdmins] = useState([]);
+  const [moderationLoading, setModerationLoading] = useState(false);
 
   useEffect(() => {
     const fetchTicket = async () => {
@@ -64,6 +65,31 @@ export default function TicketDetailPage() {
     }
   };
 
+  const handleApprove = async () => {
+    setModerationLoading(true);
+    try {
+      const { data } = await api.post(`/tickets/${id}/approve`);
+      setTicket(data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setModerationLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!confirm('Отклонить заявку? Она будет удалена.')) return;
+    setModerationLoading(true);
+    try {
+      await api.post(`/tickets/${id}/reject`);
+      navigate('/moderation');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setModerationLoading(false);
+    }
+  };
+
   const handleAssigneeChange = async (assigneeId) => {
     try {
       const { data } = await api.patch(`/tickets/${id}`, { assigneeId: assigneeId || null });
@@ -99,9 +125,9 @@ export default function TicketDetailPage() {
 
   return (
     <div>
-      <button onClick={() => navigate('/tickets')} className="text-sm text-primary-500 hover:underline mb-4 inline-flex items-center gap-1">
+      <button onClick={() => navigate(ticket.status === 'PENDING' && isAdmin ? '/moderation' : '/tickets')} className="text-sm text-primary-500 hover:underline mb-4 inline-flex items-center gap-1">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-        Назад к списку
+        {ticket.status === 'PENDING' && isAdmin ? 'Назад к модерации' : 'Назад к списку'}
       </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -153,8 +179,31 @@ export default function TicketDetailPage() {
               <p className="text-gray-700 whitespace-pre-wrap">{ticket.description}</p>
             </div>
 
+            {/* Moderation controls for PENDING tickets */}
+            {isAdmin && ticket.status === 'PENDING' && (
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h3 className="text-sm font-medium text-gray-500 mb-3">Модерация</h3>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleApprove}
+                    disabled={moderationLoading}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    Одобрить
+                  </button>
+                  <button
+                    onClick={handleReject}
+                    disabled={moderationLoading}
+                    className="px-5 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition-colors"
+                  >
+                    Отклонить
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Admin controls */}
-            {isAdmin && (
+            {isAdmin && ticket.status !== 'PENDING' && (
               <div className="mt-6 pt-6 border-t border-gray-200">
                 <h3 className="text-sm font-medium text-gray-500 mb-3">Управление</h3>
                 <div className="flex flex-wrap gap-3">
