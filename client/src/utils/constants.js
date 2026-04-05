@@ -1,4 +1,5 @@
 export const STATUS_MAP = {
+  PENDING: { label: 'На модерации', color: 'bg-purple-500', textColor: 'text-purple-700', bgLight: 'bg-purple-100' },
   OPEN: { label: 'Открыта', color: 'bg-blue-500', textColor: 'text-blue-700', bgLight: 'bg-blue-100' },
   IN_PROGRESS: { label: 'В работе', color: 'bg-yellow-500', textColor: 'text-yellow-700', bgLight: 'bg-yellow-100' },
   COMPLETED: { label: 'Выполнена', color: 'bg-green-500', textColor: 'text-green-700', bgLight: 'bg-green-100' },
@@ -19,7 +20,7 @@ export const ROLE_MAP = {
 };
 
 export const formatDate = (dateStr) => {
-  if (!dateStr) return '—';
+  if (!dateStr) return '\u2014';
   const d = new Date(dateStr);
   return d.toLocaleDateString('ru-RU', {
     day: '2-digit',
@@ -31,7 +32,7 @@ export const formatDate = (dateStr) => {
 };
 
 export const formatShortDate = (dateStr) => {
-  if (!dateStr) return '—';
+  if (!dateStr) return '\u2014';
   const d = new Date(dateStr);
   return d.toLocaleDateString('ru-RU', {
     day: '2-digit',

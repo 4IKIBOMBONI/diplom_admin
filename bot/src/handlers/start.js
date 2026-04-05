@@ -10,20 +10,19 @@ const startHandler = async (bot, msg, sessions) => {
   const result = await findOrCreateUser(telegramId, telegramUsername, fullName);
 
   if (result && result.accessToken) {
-    // Store token in session
     sessions.set(chatId, { token: result.accessToken, step: null });
 
     await bot.sendMessage(
       chatId,
-      `👋 Добро пожаловать, *${result.user?.fullName || fullName}*!\n\n` +
-      'Я помогу вам создать заявку в IT-отдел.\n' +
+      `Добро пожаловать, *${result.user?.fullName || fullName}*.\n\n` +
+      'Через этого бота вы можете подать заявку в IT-отдел.\n' +
       'Выберите действие:',
       { parse_mode: 'Markdown', ...getMainKeyboard() }
     );
   } else {
     await bot.sendMessage(
       chatId,
-      '❌ Не удалось подключиться к серверу. Попробуйте позже.',
+      'Не удалось подключиться к серверу. Попробуйте позже.',
     );
   }
 };

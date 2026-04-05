@@ -28,6 +28,11 @@ exports.getTickets = async (req, res, next) => {
     // Users can only see their own tickets
     if (req.user.role === 'USER') {
       where.creatorId = req.user.id;
+    } else {
+      // Admins don't see PENDING tickets in the main list (they have a separate moderation view)
+      if (!status) {
+        where.status = { not: 'PENDING' };
+      }
     }
 
     if (status) where.status = status;
@@ -60,7 +65,7 @@ exports.getTickets = async (req, res, next) => {
     ]);
 
     // Get counts by status
-    const baseWhere = req.user.role === 'USER' ? { creatorId: req.user.id } : {};
+    const baseWhere = req.user.role === 'USER' ? { creatorId: req.user.id } : { status: { not: 'PENDING' } };
     const statusCounts = await prisma.ticket.groupBy({
       by: ['status'],
       where: baseWhere,
@@ -75,7 +80,9 @@ exports.getTickets = async (req, res, next) => {
       CLOSED: 0,
     };
     statusCounts.forEach((sc) => {
-      counts[sc.status] = sc._count;
+      if (sc.status !== 'PENDING') {
+        counts[sc.status] = sc._count;
+      }
     });
 
     res.json({
@@ -88,6 +95,97 @@ exports.getTickets = async (req, res, next) => {
       },
       counts,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get pending tickets for moderation (admin/superadmin)
+exports.getPendingTickets = async (req, res, next) => {
+  try {
+    const { page = 1, limit = 20 } = req.query;
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+
+    const where = { status: 'PENDING' };
+
+    const [tickets, total] = await Promise.all([
+      prisma.ticket.findMany({
+        where,
+        include: ticketInclude,
+        skip,
+        take,
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.ticket.count({ where }),
+    ]);
+
+    res.json({
+      tickets,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total,
+        totalPages: Math.ceil(total / take),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Approve a pending ticket
+exports.approveTicket = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Заявка не найдена' });
+    }
+    if (ticket.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Заявка уже прошла модерацию' });
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: parseInt(id) },
+      data: { status: 'OPEN' },
+      include: ticketInclude,
+    });
+
+    await prisma.statusHistory.create({
+      data: {
+        oldStatus: 'PENDING',
+        newStatus: 'OPEN',
+        ticketId: parseInt(id),
+        changedById: req.user.id,
+      },
+    });
+
+    notifyNewTicket(updated);
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Reject a pending ticket
+exports.rejectTicket = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { reason } = req.body;
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Заявка не найдена' });
+    }
+    if (ticket.status !== 'PENDING') {
+      return res.status(400).json({ error: 'Заявка уже прошла модерацию' });
+    }
+
+    await prisma.ticket.delete({ where: { id: parseInt(id) } });
+
+    res.json({ message: 'Заявка отклонена' });
   } catch (error) {
     next(error);
   }
@@ -115,7 +213,7 @@ exports.getTicket = async (req, res, next) => {
     });
 
     if (!ticket) {
-      return res.status(404).json({ error: 'Тикет не найден' });
+      return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
     // Users can only see their own tickets
@@ -138,6 +236,10 @@ exports.createTicket = async (req, res, next) => {
   try {
     const { title, description, categoryId, priority, location, source } = req.body;
 
+    // Admins create tickets directly as OPEN, users go through moderation
+    const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
+    const initialStatus = isAdmin ? 'OPEN' : 'PENDING';
+
     const ticket = await prisma.ticket.create({
       data: {
         title,
@@ -146,6 +248,7 @@ exports.createTicket = async (req, res, next) => {
         priority: priority || 'MEDIUM',
         location,
         source: source || 'WEB',
+        status: initialStatus,
         creatorId: req.user.id,
       },
       include: ticketInclude,
@@ -154,13 +257,16 @@ exports.createTicket = async (req, res, next) => {
     // Create initial status history
     await prisma.statusHistory.create({
       data: {
-        newStatus: 'OPEN',
+        newStatus: initialStatus,
         ticketId: ticket.id,
         changedById: req.user.id,
       },
     });
 
-    notifyNewTicket(ticket);
+    if (isAdmin) {
+      notifyNewTicket(ticket);
+    }
+
     res.status(201).json(ticket);
   } catch (error) {
     next(error);
@@ -178,7 +284,7 @@ exports.updateTicket = async (req, res, next) => {
     });
 
     if (!existing) {
-      return res.status(404).json({ error: 'Тикет не найден' });
+      return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
     // Only admins can update status/assignee
@@ -238,11 +344,11 @@ exports.deleteTicket = async (req, res, next) => {
 
     const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
     if (!ticket) {
-      return res.status(404).json({ error: 'Тикет не найден' });
+      return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
     await prisma.ticket.delete({ where: { id: parseInt(id) } });
-    res.json({ message: 'Тикет удалён' });
+    res.json({ message: 'Заявка удалена' });
   } catch (error) {
     next(error);
   }
@@ -255,7 +361,7 @@ exports.addComment = async (req, res, next) => {
 
     const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
     if (!ticket) {
-      return res.status(404).json({ error: 'Тикет не найден' });
+      return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
     // Users can only comment on their own tickets
@@ -291,7 +397,7 @@ exports.getComments = async (req, res, next) => {
 
     const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
     if (!ticket) {
-      return res.status(404).json({ error: 'Тикет не найден' });
+      return res.status(404).json({ error: 'Заявка не найдена' });
     }
 
     if (req.user.role === 'USER' && ticket.creatorId !== req.user.id) {

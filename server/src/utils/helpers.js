@@ -11,6 +11,7 @@ const formatTicketForResponse = (ticket) => {
 };
 
 const STATUS_LABELS = {
+  PENDING: 'На модерации',
   OPEN: 'Открыта',
   IN_PROGRESS: 'В работе',
   COMPLETED: 'Выполнена',

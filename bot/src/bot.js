@@ -35,11 +35,11 @@ bot.on('callback_query', async (query) => {
 
   if (data === 'help') {
     return bot.sendMessage(chatId,
-      '📌 *��ак пользоваться ботом:*\n\n' +
-      '1. Нажмите "📝 Новая заявка" чтобы создать заявку\n' +
+      'Как пользоваться ботом:\n\n' +
+      '1. Нажмите "Новая заявка" чтобы создать заявку\n' +
       '2. Следуйте инструкциям бота\n' +
-      '3. Нажмите "📋 Мои заявки" чтобы проверить статус\n\n' +
-      'Вы также можете использовать команды:\n' +
+      '3. Нажмите "Мои заявки" чтобы проверить статус\n\n' +
+      'Команды:\n' +
       '/start — Начало работы\n' +
       '/status — Мои заявки',
       { parse_mode: 'Markdown' }
@@ -56,7 +56,7 @@ bot.on('callback_query', async (query) => {
     if (session && session.step === 'category') {
       session.categoryId = parseInt(data.replace('cat_', ''));
       session.step = 'location';
-      return bot.sendMessage(chatId, '📍 Укажите аудиторию/кабинет (или напишите "нет"):');
+      return bot.sendMessage(chatId, 'Укажите аудиторию/кабинет (или напишите "нет"):');
     }
   }
 });
@@ -65,7 +65,7 @@ bot.onText(/\/status/, (msg) => statusHandler(bot, msg.chat.id));
 
 // Handle text messages for ticket creation flow
 bot.on('message', (msg) => {
-  if (msg.text && msg.text.startsWith('/')) return; // Skip commands
+  if (msg.text && msg.text.startsWith('/')) return;
 
   const chatId = msg.chat.id;
   const session = sessions.get(chatId);
@@ -74,4 +74,4 @@ bot.on('message', (msg) => {
   handleTicketStep(bot, chatId, msg.text, sessions);
 });
 
-console.log('🤖 Telegram bot started');
+console.log('Telegram bot started');

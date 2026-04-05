@@ -26,26 +26,26 @@ export function NotificationProvider({ children }) {
 
     const onNewTicket = (ticket) => {
       const msg = `Новая заявка #${ticket.id}: ${ticket.title}`;
-      toast(msg, { icon: '📩' });
+      toast(msg);
       addNotification({ type: 'ticket:new', message: msg, data: ticket, createdAt: new Date() });
     };
 
     const onStatusChanged = ({ ticketId, oldStatus, newStatus, changedBy }) => {
       const statusLabel = STATUS_MAP[newStatus]?.label || newStatus;
-      const msg = `Заявка #${ticketId} — статус изменён на "${statusLabel}"`;
-      toast(msg, { icon: '🔔' });
+      const msg = `Заявка #${ticketId} \u2014 статус изменен на "${statusLabel}"`;
+      toast(msg);
       addNotification({ type: 'ticket:statusChanged', message: msg, data: { ticketId, newStatus }, createdAt: new Date() });
     };
 
     const onAssigned = ({ ticketId, assignee }) => {
       const msg = `Заявка #${ticketId} назначена: ${assignee?.fullName}`;
-      toast(msg, { icon: '👤' });
+      toast(msg);
       addNotification({ type: 'ticket:assigned', message: msg, data: { ticketId }, createdAt: new Date() });
     };
 
     const onCommented = ({ ticketId, comment }) => {
       const msg = `Новый комментарий к заявке #${ticketId}`;
-      toast(msg, { icon: '💬' });
+      toast(msg);
       addNotification({ type: 'ticket:commented', message: msg, data: { ticketId }, createdAt: new Date() });
     };
 

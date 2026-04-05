@@ -1,10 +1,10 @@
 const getMainKeyboard = () => ({
   reply_markup: {
     inline_keyboard: [
-      [{ text: '📝 Новая заявка', callback_data: 'new_ticket' }],
+      [{ text: 'Новая заявка', callback_data: 'new_ticket' }],
       [
-        { text: '📋 Мои заявки', callback_data: 'my_tickets' },
-        { text: 'ℹ️ Помощь', callback_data: 'help' },
+        { text: 'Мои заявки', callback_data: 'my_tickets' },
+        { text: 'Помощь', callback_data: 'help' },
       ],
     ],
   },
@@ -21,8 +21,8 @@ const getCategoryKeyboard = (categories) => ({
 const getCheckStatusKeyboard = (ticketId) => ({
   reply_markup: {
     inline_keyboard: [
-      [{ text: '📋 Проверить статус', callback_data: `check_status_${ticketId}` }],
-      [{ text: '📝 Новая заявка', callback_data: 'new_ticket' }],
+      [{ text: 'Проверить статус', callback_data: `check_status_${ticketId}` }],
+      [{ text: 'Новая заявка', callback_data: 'new_ticket' }],
     ],
   },
 });

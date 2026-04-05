@@ -10,6 +10,12 @@ const router = express.Router();
 router.use(authMiddleware);
 
 router.get('/', ticketsController.getTickets);
+
+// Moderation endpoints (admin/superadmin)
+router.get('/pending', roleMiddleware('ADMIN', 'SUPERADMIN'), ticketsController.getPendingTickets);
+router.post('/:id/approve', roleMiddleware('ADMIN', 'SUPERADMIN'), ticketsController.approveTicket);
+router.post('/:id/reject', roleMiddleware('ADMIN', 'SUPERADMIN'), ticketsController.rejectTicket);
+
 router.get('/:id', ticketsController.getTicket);
 
 router.post(

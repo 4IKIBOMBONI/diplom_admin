@@ -8,6 +8,7 @@ import TicketsPage from './pages/TicketsPage';
 import TicketDetailPage from './pages/TicketDetailPage';
 import CreateTicketPage from './pages/CreateTicketPage';
 import UsersPage from './pages/UsersPage';
+import ModerationPage from './pages/ModerationPage';
 import ProfilePage from './pages/ProfilePage';
 
 function ProtectedRoute({ children, adminOnly, superOnly }) {
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/new" element={<CreateTicketPage />} />
           <Route path="tickets/:id" element={<TicketDetailPage />} />
+          <Route path="moderation" element={<ProtectedRoute adminOnly><ModerationPage /></ProtectedRoute>} />
           <Route path="users" element={<ProtectedRoute superOnly><UsersPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProfilePage />} />
         </Route>

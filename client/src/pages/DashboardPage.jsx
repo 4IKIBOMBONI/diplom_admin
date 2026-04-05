@@ -33,10 +33,10 @@ export default function DashboardPage() {
   }
 
   const cards = [
-    { label: 'Всего заявок', value: overview?.total || 0, color: 'bg-blue-500', icon: '📋' },
-    { label: 'Открытых', value: overview?.OPEN || 0, color: 'bg-blue-400', icon: '📩' },
-    { label: 'В работе', value: overview?.IN_PROGRESS || 0, color: 'bg-yellow-500', icon: '🔧' },
-    { label: 'Среднее время (ч)', value: overview?.avgResolutionHours || 0, color: 'bg-green-500', icon: '⏱' },
+    { label: 'Всего заявок', value: overview?.total || 0, color: 'bg-blue-500' },
+    { label: 'Открытых', value: overview?.OPEN || 0, color: 'bg-blue-400' },
+    { label: 'В работе', value: overview?.IN_PROGRESS || 0, color: 'bg-yellow-500' },
+    { label: 'Среднее время (ч)', value: overview?.avgResolutionHours || 0, color: 'bg-green-500' },
   ];
 
   return (
@@ -47,14 +47,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {cards.map((card) => (
           <div key={card.label} className="bg-white rounded-lg border border-gray-200 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">{card.label}</p>
-                <p className="text-2xl font-bold text-gray-800 mt-1">{card.value}</p>
-              </div>
-              <div className={`w-12 h-12 rounded-lg ${card.color} bg-opacity-10 flex items-center justify-center text-2xl`}>
-                {card.icon}
-              </div>
+            <div>
+              <p className="text-sm text-gray-500">{card.label}</p>
+              <p className="text-2xl font-bold text-gray-800 mt-1">{card.value}</p>
             </div>
           </div>
         ))}
