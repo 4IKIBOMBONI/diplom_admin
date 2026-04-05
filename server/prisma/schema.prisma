@@ -64,7 +64,7 @@ model Ticket {
   id          Int            @id @default(autoincrement())
   title       String
   description String
-  status      TicketStatus   @default(PENDING)
+  status      TicketStatus   @default(OPEN)
   priority    TicketPriority @default(MEDIUM)
   source      TicketSource   @default(WEB)
   location    String?
