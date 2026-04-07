@@ -10,6 +10,19 @@ const getMainKeyboard = () => ({
   },
 });
 
+const getAdminKeyboard = () => ({
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: 'На модерации', callback_data: 'admin_pending' }],
+      [
+        { text: 'Открытые', callback_data: 'admin_open' },
+        { text: 'В работе', callback_data: 'admin_in_progress' },
+      ],
+      [{ text: '◀ Главное меню', callback_data: 'main_menu' }],
+    ],
+  },
+});
+
 const getCategoryKeyboard = (categories) => ({
   reply_markup: {
     inline_keyboard: categories.map((cat) => [
@@ -27,4 +40,4 @@ const getCheckStatusKeyboard = (ticketId) => ({
   },
 });
 
-module.exports = { getMainKeyboard, getCategoryKeyboard, getCheckStatusKeyboard };
+module.exports = { getMainKeyboard, getAdminKeyboard, getCategoryKeyboard, getCheckStatusKeyboard };

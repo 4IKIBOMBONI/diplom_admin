@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const http = require('http');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const { initSocket } = require('./socket');
 const logger = require('./utils/logger');
@@ -12,6 +13,7 @@ const ticketRoutes = require('./routes/tickets.routes');
 const userRoutes = require('./routes/users.routes');
 const statsRoutes = require('./routes/stats.routes');
 const categoryRoutes = require('./routes/categories.routes');
+const knowledgeBaseRoutes = require('./routes/knowledgebase.routes');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -23,7 +25,7 @@ app.set('io', io);
 app.set('prisma', prisma);
 
 // Middleware
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (bots, server-to-server, curl)
@@ -41,6 +43,9 @@ app.use(cors({
   credentials: true,
 }));
 app.use(express.json());
+
+// Serve uploaded files
+app.use('/uploads', express.static(path.resolve(__dirname, '../uploads')));
 
 // Make prisma available in requests
 app.use((req, res, next) => {
@@ -63,6 +68,7 @@ app.use('/api/tickets', ticketRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/stats', statsRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/knowledge-base', knowledgeBaseRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

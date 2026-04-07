@@ -1,12 +1,23 @@
 const { PrismaClient } = require('@prisma/client');
 const { notifyNewTicket, notifyStatusChanged, notifyAssigned, notifyCommented } = require('../services/notification.service');
+const telegramService = require('../services/telegram.service');
 
 const prisma = new PrismaClient();
 
 const ticketInclude = {
   category: true,
-  creator: { select: { id: true, fullName: true, email: true } },
+  creator: { select: { id: true, fullName: true, email: true, employeeId: true } },
   assignee: { select: { id: true, fullName: true, email: true } },
+  attachments: true,
+};
+
+// Calculate SLA deadline based on priority and category
+const calculateDeadline = (priority, slaHours) => {
+  const multipliers = { LOW: 2, MEDIUM: 1, HIGH: 0.5, CRITICAL: 0.25 };
+  const hours = slaHours * (multipliers[priority] || 1);
+  const deadline = new Date();
+  deadline.setHours(deadline.getHours() + hours);
+  return deadline;
 };
 
 exports.getTickets = async (req, res, next) => {
@@ -21,6 +32,7 @@ exports.getTickets = async (req, res, next) => {
       sortBy = 'createdAt',
       order = 'desc',
       assigneeId,
+      overdue,
     } = req.query;
 
     const where = {};
@@ -29,7 +41,7 @@ exports.getTickets = async (req, res, next) => {
     if (req.user.role === 'USER') {
       where.creatorId = req.user.id;
     } else {
-      // Admins don't see PENDING tickets in the main list (they have a separate moderation view)
+      // Admins don't see PENDING tickets in the main list
       if (!status) {
         where.status = { not: 'PENDING' };
       }
@@ -39,6 +51,12 @@ exports.getTickets = async (req, res, next) => {
     if (priority) where.priority = priority;
     if (category) where.categoryId = parseInt(category);
     if (assigneeId) where.assigneeId = parseInt(assigneeId);
+
+    // Filter overdue tickets
+    if (overdue === 'true') {
+      where.deadline = { lt: new Date() };
+      where.status = { in: ['OPEN', 'IN_PROGRESS'] };
+    }
 
     if (search) {
       where.OR = [
@@ -50,7 +68,7 @@ exports.getTickets = async (req, res, next) => {
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const take = parseInt(limit);
 
-    const allowedSortFields = ['createdAt', 'updatedAt', 'priority', 'status', 'id'];
+    const allowedSortFields = ['createdAt', 'updatedAt', 'priority', 'status', 'id', 'deadline'];
     const orderByField = allowedSortFields.includes(sortBy) ? sortBy : 'createdAt';
 
     const [tickets, total] = await Promise.all([
@@ -139,7 +157,10 @@ exports.approveTicket = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
+    const ticket = await prisma.ticket.findUnique({
+      where: { id: parseInt(id) },
+      include: { category: true },
+    });
     if (!ticket) {
       return res.status(404).json({ error: 'Заявка не найдена' });
     }
@@ -147,9 +168,12 @@ exports.approveTicket = async (req, res, next) => {
       return res.status(400).json({ error: 'Заявка уже прошла модерацию' });
     }
 
+    // Calculate SLA deadline
+    const deadline = calculateDeadline(ticket.priority, ticket.category.slaHours);
+
     const updated = await prisma.ticket.update({
       where: { id: parseInt(id) },
-      data: { status: 'OPEN' },
+      data: { status: 'OPEN', deadline },
       include: ticketInclude,
     });
 
@@ -163,6 +187,9 @@ exports.approveTicket = async (req, res, next) => {
     });
 
     notifyNewTicket(updated);
+    // Telegram notification to creator
+    telegramService.notifyTicketApproved(parseInt(id));
+
     res.json(updated);
   } catch (error) {
     next(error);
@@ -173,7 +200,6 @@ exports.approveTicket = async (req, res, next) => {
 exports.rejectTicket = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { reason } = req.body;
 
     const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
     if (!ticket) {
@@ -236,20 +262,31 @@ exports.createTicket = async (req, res, next) => {
   try {
     const { title, description, categoryId, priority, location, source } = req.body;
 
+    // Get category for SLA
+    const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
+    if (!category) {
+      return res.status(400).json({ error: 'Категория не найдена' });
+    }
+
     // Admins create tickets directly as OPEN, users go through moderation
     const isAdmin = req.user.role === 'ADMIN' || req.user.role === 'SUPERADMIN';
     const initialStatus = isAdmin ? 'OPEN' : 'PENDING';
+    const ticketPriority = priority || 'MEDIUM';
+
+    // Calculate SLA deadline (only for OPEN tickets, PENDING gets it after approval)
+    const deadline = isAdmin ? calculateDeadline(ticketPriority, category.slaHours) : null;
 
     const ticket = await prisma.ticket.create({
       data: {
         title,
         description,
         categoryId: parseInt(categoryId),
-        priority: priority || 'MEDIUM',
+        priority: ticketPriority,
         location,
         source: source || 'WEB',
         status: initialStatus,
         creatorId: req.user.id,
+        deadline,
       },
       include: ticketInclude,
     });
@@ -265,6 +302,9 @@ exports.createTicket = async (req, res, next) => {
 
     if (isAdmin) {
       notifyNewTicket(ticket);
+    } else {
+      // Notify admins about new pending ticket via Telegram
+      telegramService.notifyAdminsNewTicket(ticket);
     }
 
     res.status(201).json(ticket);
@@ -320,6 +360,9 @@ exports.updateTicket = async (req, res, next) => {
         id: req.user.id,
         fullName: req.user.fullName,
       }, existing.creatorId);
+
+      // Telegram notification
+      telegramService.notifyStatusChange(parseInt(id), existing.status, status, req.user.fullName);
     }
 
     const updated = await prisma.ticket.update({
@@ -330,6 +373,7 @@ exports.updateTicket = async (req, res, next) => {
 
     if (assigneeId && assigneeId !== existing.assigneeId) {
       notifyAssigned(parseInt(id), updated.assignee, existing.creatorId);
+      telegramService.notifyAssignment(parseInt(id), updated.assignee?.fullName || 'Не назначен');
     }
 
     res.json(updated);
@@ -385,6 +429,9 @@ exports.addComment = async (req, res, next) => {
     });
 
     notifyCommented(parseInt(id), comment, ticket.creatorId);
+    // Telegram notification
+    telegramService.notifyNewComment(parseInt(id), text, req.user.fullName, commentIsInternal);
+
     res.status(201).json(comment);
   } catch (error) {
     next(error);
@@ -418,6 +465,102 @@ exports.getComments = async (req, res, next) => {
     });
 
     res.json(comments);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Rate a completed/closed ticket
+exports.rateTicket = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { rating, comment } = req.body;
+
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Оценка должна быть от 1 до 5' });
+    }
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Заявка не найдена' });
+    }
+
+    // Only ticket creator can rate
+    if (ticket.creatorId !== req.user.id) {
+      return res.status(403).json({ error: 'Оценить заявку может только автор' });
+    }
+
+    if (!['COMPLETED', 'CLOSED'].includes(ticket.status)) {
+      return res.status(400).json({ error: 'Оценить можно только завершённую заявку' });
+    }
+
+    if (ticket.rating) {
+      return res.status(400).json({ error: 'Заявка уже оценена' });
+    }
+
+    const updated = await prisma.ticket.update({
+      where: { id: parseInt(id) },
+      data: {
+        rating: parseInt(rating),
+        ratingComment: comment || null,
+      },
+      include: ticketInclude,
+    });
+
+    res.json(updated);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Upload attachments to a ticket
+exports.uploadAttachments = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const ticket = await prisma.ticket.findUnique({ where: { id: parseInt(id) } });
+    if (!ticket) {
+      return res.status(404).json({ error: 'Заявка не найдена' });
+    }
+
+    if (req.user.role === 'USER' && ticket.creatorId !== req.user.id) {
+      return res.status(403).json({ error: 'Недостаточно прав' });
+    }
+
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'Файлы не загружены' });
+    }
+
+    const attachments = await Promise.all(
+      req.files.map((file) =>
+        prisma.attachment.create({
+          data: {
+            filename: file.filename,
+            originalName: file.originalname,
+            mimeType: file.mimetype,
+            size: file.size,
+            ticketId: parseInt(id),
+          },
+        })
+      )
+    );
+
+    res.status(201).json(attachments);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get overdue tickets count
+exports.getOverdueCount = async (req, res, next) => {
+  try {
+    const count = await prisma.ticket.count({
+      where: {
+        deadline: { lt: new Date() },
+        status: { in: ['OPEN', 'IN_PROGRESS'] },
+      },
+    });
+    res.json({ count });
   } catch (error) {
     next(error);
   }

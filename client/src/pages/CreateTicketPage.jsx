@@ -1,17 +1,37 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import api from '../services/api';
 
 export default function CreateTicketPage() {
   const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState({ title: '', description: '', categoryId: '', priority: 'MEDIUM', location: '' });
+  const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
 
   useEffect(() => {
     api.get('/categories').then(({ data }) => setCategories(data)).catch(() => {});
   }, []);
+
+  // Debounced KB search
+  const searchKB = useCallback(
+    debounce(async (q) => {
+      if (q.length < 3) { setSuggestions([]); return; }
+      try {
+        const { data } = await api.get(`/knowledge-base/search?q=${encodeURIComponent(q)}`);
+        setSuggestions(data);
+      } catch { setSuggestions([]); }
+    }, 500),
+    []
+  );
+
+  const handleTitleChange = (e) => {
+    const title = e.target.value;
+    setForm({ ...form, title });
+    searchKB(title);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,6 +42,16 @@ export default function CreateTicketPage() {
         ...form,
         categoryId: parseInt(form.categoryId),
       });
+
+      // Upload files if any
+      if (files.length > 0) {
+        const formData = new FormData();
+        files.forEach((f) => formData.append('files', f));
+        await api.post(`/tickets/${data.id}/attachments`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+      }
+
       navigate(`/tickets/${data.id}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Ошибка при создании заявки');
@@ -49,10 +79,25 @@ export default function CreateTicketPage() {
               type="text"
               required
               value={form.title}
-              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              onChange={handleTitleChange}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none"
               placeholder="Кратко опишите проблему"
             />
+            {suggestions.length > 0 && (
+              <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-xs font-medium text-blue-700 mb-2">Возможно, ответ уже есть в базе знаний:</p>
+                {suggestions.map((s) => (
+                  <Link
+                    key={s.id}
+                    to={`/knowledge-base?article=${s.id}`}
+                    className="block text-sm text-blue-600 hover:underline py-0.5"
+                    target="_blank"
+                  >
+                    {s.title} <span className="text-xs text-blue-400">({s.categoryName})</span>
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
@@ -107,6 +152,20 @@ export default function CreateTicketPage() {
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Вложения</label>
+            <input
+              type="file"
+              multiple
+              onChange={(e) => setFiles(Array.from(e.target.files))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white file:mr-4 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-primary-50 file:text-primary-600 hover:file:bg-primary-100"
+              accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar"
+            />
+            {files.length > 0 && (
+              <p className="text-xs text-gray-500 mt-1">Выбрано файлов: {files.length}</p>
+            )}
+          </div>
+
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
@@ -127,4 +186,12 @@ export default function CreateTicketPage() {
       </div>
     </div>
   );
+}
+
+function debounce(fn, delay) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), delay);
+  };
 }

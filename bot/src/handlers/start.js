@@ -10,13 +10,27 @@ const startHandler = async (bot, msg, sessions) => {
   const result = await findOrCreateUser(telegramId, telegramUsername, fullName);
 
   if (result && result.accessToken) {
-    sessions.set(chatId, { token: result.accessToken, step: null });
+    sessions.set(chatId, {
+      token: result.accessToken,
+      step: null,
+      role: result.user?.role || 'USER',
+    });
+
+    const isAdmin = result.user?.role === 'ADMIN' || result.user?.role === 'SUPERADMIN';
+
+    let welcomeText =
+      `Добро пожаловать, *${result.user?.fullName || fullName}*.\n\n` +
+      'Через этого бота вы можете подать заявку в IT-отдел.\n';
+
+    if (isAdmin) {
+      welcomeText += '\nУ вас есть права администратора. Используйте /admin для управления заявками.\n';
+    }
+
+    welcomeText += '\nВыберите действие:';
 
     await bot.sendMessage(
       chatId,
-      `Добро пожаловать, *${result.user?.fullName || fullName}*.\n\n` +
-      'Через этого бота вы можете подать заявку в IT-отдел.\n' +
-      'Выберите действие:',
+      welcomeText,
       { parse_mode: 'Markdown', ...getMainKeyboard() }
     );
   } else {

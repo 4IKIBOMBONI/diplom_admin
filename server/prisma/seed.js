@@ -1,112 +1,85 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcrypt');
-
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
 
-  // Clean existing data
   await prisma.statusHistory.deleteMany();
   await prisma.comment.deleteMany();
+  await prisma.attachment.deleteMany();
   await prisma.ticket.deleteMany();
   await prisma.refreshToken.deleteMany();
   await prisma.user.deleteMany();
   await prisma.category.deleteMany();
+  await prisma.knowledgeBase.deleteMany();
 
   const passwordHash = await bcrypt.hash('admin123', 10);
   const userPasswordHash = await bcrypt.hash('user123', 10);
 
-  // Create users
   const superadmin = await prisma.user.create({
-    data: {
-      email: 'admin@helpdesk.ru',
-      password: passwordHash,
-      fullName: 'Петров Алексей Сергеевич',
-      role: 'SUPERADMIN',
-    },
+    data: { email: 'admin@helpdesk.ru', password: passwordHash, fullName: 'Петров Алексей Сергеевич', role: 'SUPERADMIN', employeeId: 'EMP001' },
   });
-
   const admin = await prisma.user.create({
-    data: {
-      email: 'ivanov@helpdesk.ru',
-      password: passwordHash,
-      fullName: 'Иванов Дмитрий Николаевич',
-      role: 'ADMIN',
-    },
+    data: { email: 'ivanov@helpdesk.ru', password: passwordHash, fullName: 'Иванов Дмитрий Николаевич', role: 'ADMIN', employeeId: 'EMP002' },
   });
-
   const user1 = await prisma.user.create({
-    data: {
-      email: 'sidorova@mail.ru',
-      password: userPasswordHash,
-      fullName: 'Сидорова Мария Павловна',
-      role: 'USER',
-    },
+    data: { email: 'sidorova@mail.ru', password: userPasswordHash, fullName: 'Сидорова Мария Павловна', role: 'USER', employeeId: 'EMP003' },
   });
-
   const user2 = await prisma.user.create({
-    data: {
-      email: 'kuznetsov@mail.ru',
-      password: userPasswordHash,
-      fullName: 'Кузнецов Андрей Викторович',
-      role: 'USER',
-    },
+    data: { email: 'kuznetsov@mail.ru', password: userPasswordHash, fullName: 'Кузнецов Андрей Викторович', role: 'USER', employeeId: 'EMP004' },
   });
-
   const user3 = await prisma.user.create({
-    data: {
-      email: 'volkova@mail.ru',
-      password: userPasswordHash,
-      fullName: 'Волкова Елена Игоревна',
-      role: 'USER',
-    },
+    data: { email: 'volkova@mail.ru', password: userPasswordHash, fullName: 'Волкова Елена Игоревна', role: 'USER', employeeId: 'EMP005' },
   });
-
   console.log('Users created');
 
-  // Create categories
   const categories = await Promise.all([
-    prisma.category.create({ data: { name: 'Почта', description: 'Проблемы с электронной почтой' } }),
-    prisma.category.create({ data: { name: 'Сеть/VPN', description: 'Проблемы с сетевым подключением и VPN' } }),
-    prisma.category.create({ data: { name: 'Оборудование', description: 'Проблемы с компьютерами, принтерами и другим оборудованием' } }),
-    prisma.category.create({ data: { name: 'Программное обеспечение', description: 'Установка, обновление и настройка ПО' } }),
-    prisma.category.create({ data: { name: 'Доступы/Учётные записи', description: 'Создание, блокировка и восстановление учётных записей' } }),
-    prisma.category.create({ data: { name: 'Прочее', description: 'Прочие запросы' } }),
+    prisma.category.create({ data: { name: 'Почта', description: 'Проблемы с электронной почтой', slaHours: 24 } }),
+    prisma.category.create({ data: { name: 'Сеть/VPN', description: 'Проблемы с сетевым подключением и VPN', slaHours: 24 } }),
+    prisma.category.create({ data: { name: 'Оборудование', description: 'Проблемы с компьютерами, принтерами и другим оборудованием', slaHours: 72 } }),
+    prisma.category.create({ data: { name: 'Программное обеспечение', description: 'Установка, обновление и настройка ПО', slaHours: 48 } }),
+    prisma.category.create({ data: { name: 'Доступы/Учётные записи', description: 'Создание, блокировка и восстановление учётных записей', slaHours: 12 } }),
+    prisma.category.create({ data: { name: 'Прочее', description: 'Прочие запросы', slaHours: 48 } }),
   ]);
-
   console.log('Categories created');
 
   const [catMail, catNet, catHW, catSW, catAccess, catOther] = categories;
-  const users = [user1, user2, user3];
-  const admins = [admin, superadmin];
 
-  // Create tickets with different statuses and priorities
+  const priorityMultiplier = { LOW: 2, MEDIUM: 1, HIGH: 0.5, CRITICAL: 0.25 };
+
+  function calcDeadline(createdAt, slaHours, priority) {
+    const hours = slaHours * (priorityMultiplier[priority] || 1);
+    return new Date(createdAt.getTime() + hours * 3600000);
+  }
+
   const ticketData = [
-    { title: 'Не приходят письма на корпоративную почту', description: 'С утра не получаю письма на почту. Отправка работает нормально, а входящие не поступают уже 3 часа.', categoryId: catMail.id, priority: 'HIGH', creator: user1, status: 'IN_PROGRESS', assignee: admin, location: '201' },
-    { title: 'Не работает VPN', description: 'При попытке подключения к VPN выдаёт ошибку "Connection timeout". Пробовал перезагрузить компьютер, не помогло.', categoryId: catNet.id, priority: 'HIGH', creator: user2, status: 'OPEN', location: '305' },
-    { title: 'Замена картриджа в принтере HP LaserJet', description: 'В кабинете 412 закончился тонер в принтере HP LaserJet Pro M404. Нужна замена картриджа.', categoryId: catHW.id, priority: 'LOW', creator: user1, status: 'COMPLETED', assignee: admin, location: '412' },
-    { title: 'Установить Microsoft Office', description: 'На новом компьютере нужно установить Microsoft Office 2021. Компьютер уже подключён к сети.', categoryId: catSW.id, priority: 'MEDIUM', creator: user3, status: 'OPEN', location: '118' },
-    { title: 'Не могу войти в 1С', description: 'При входе в 1С:Бухгалтерию выдаёт ошибку "Неверный пароль", хотя пароль точно правильный. Пробовала сбросить через ИТ-портал.', categoryId: catAccess.id, priority: 'HIGH', creator: user1, status: 'IN_PROGRESS', assignee: superadmin, location: '203' },
-    { title: 'Медленно работает компьютер', description: 'Компьютер очень медленно загружается и зависает при открытии нескольких программ. Работает так уже неделю.', categoryId: catHW.id, priority: 'MEDIUM', creator: user2, status: 'OPEN', location: '310' },
-    { title: 'Нет доступа к сетевой папке', description: 'Не могу открыть сетевую папку \\\\server\\shared. Пишет "Отказано в доступе". Раньше доступ был.', categoryId: catNet.id, priority: 'MEDIUM', creator: user3, status: 'COMPLETED', assignee: admin, location: '215' },
-    { title: 'Создать учётную запись для нового сотрудника', description: 'Нужно создать учётную запись AD и почтовый ящик для нового сотрудника Козлова А.В., отдел маркетинга.', categoryId: catAccess.id, priority: 'MEDIUM', creator: user1, status: 'CLOSED', assignee: admin },
-    { title: 'Не работает проектор в аудитории 501', description: 'Проектор не включается. Лампочка мигает красным. Нужен для лекции завтра утром.', categoryId: catHW.id, priority: 'CRITICAL', creator: user2, status: 'IN_PROGRESS', assignee: admin, location: '501' },
-    { title: 'Обновить антивирус', description: 'На нескольких компьютерах в кабинете 220 устарела база антивируса. Нужно обновить Kaspersky на 5 машинах.', categoryId: catSW.id, priority: 'LOW', creator: user3, status: 'OPEN', location: '220' },
-    { title: 'Настроить WiFi в новом кабинете', description: 'В кабинете 415 после ремонта нет WiFi. Нужно установить и настроить точку доступа.', categoryId: catNet.id, priority: 'MEDIUM', creator: user1, status: 'COMPLETED', assignee: superadmin, location: '415' },
-    { title: 'Заблокирована учётная запись', description: 'После нескольких попыток входа заблокировалась моя учётная запись Windows. Не могу войти в систему.', categoryId: catAccess.id, priority: 'HIGH', creator: user2, status: 'CLOSED', assignee: admin, location: '307' },
-    { title: 'Не печатает принтер Canon', description: 'Принтер Canon i-SENSYS в кабинете 105 перестал печатать. Задания уходят в очередь, но не печатаются.', categoryId: catHW.id, priority: 'MEDIUM', creator: user3, status: 'OPEN', location: '105' },
-    { title: 'Установить Zoom и Teams', description: 'Нужно установить Zoom и Microsoft Teams для проведения онлайн-совещаний. Компьютер в кабинете ректора.', categoryId: catSW.id, priority: 'HIGH', creator: user1, status: 'COMPLETED', assignee: admin, location: '101' },
-    { title: 'Проблема с отправкой вложений', description: 'При попытке отправить письмо с вложением больше 5 МБ выходит ошибка. Раньше отправлял файлы до 25 МБ без проблем.', categoryId: catMail.id, priority: 'MEDIUM', creator: user2, status: 'IN_PROGRESS', assignee: admin, location: '209' },
-    { title: 'Перенести данные на новый компьютер', description: 'Получил новый компьютер, нужно перенести данные со старого: документы, настройки почты, закладки браузера.', categoryId: catOther.id, priority: 'LOW', creator: user3, status: 'OPEN', location: '402' },
-    { title: 'Не работает телефония', description: 'IP-телефон не регистрируется на сервере. Не могу принимать и совершать звонки уже 2 день.', categoryId: catNet.id, priority: 'HIGH', creator: user1, status: 'OPEN', location: '208' },
-    { title: 'Нужен доступ к CRM-системе', description: 'Перешёл в отдел продаж, нужен доступ к CRM-системе Bitrix24 с правами менеджера.', categoryId: catAccess.id, priority: 'MEDIUM', creator: user2, status: 'COMPLETED', assignee: superadmin },
+    { title: 'Не приходят письма на корпоративную почту', description: 'С утра не получаю письма на почту. Отправка работает нормально, а входящие не поступают уже 3 часа.', categoryId: catMail.id, sla: catMail.slaHours, priority: 'HIGH', creator: user1, status: 'IN_PROGRESS', assignee: admin, location: '201' },
+    { title: 'Не работает VPN', description: 'При попытке подключения к VPN выдаёт ошибку "Connection timeout". Пробовал перезагрузить компьютер, не помогло.', categoryId: catNet.id, sla: catNet.slaHours, priority: 'HIGH', creator: user2, status: 'OPEN', location: '305' },
+    { title: 'Замена картриджа в принтере HP LaserJet', description: 'В кабинете 412 закончился тонер в принтере HP LaserJet Pro M404. Нужна замена картриджа.', categoryId: catHW.id, sla: catHW.slaHours, priority: 'LOW', creator: user1, status: 'COMPLETED', assignee: admin, location: '412', rating: 5, ratingComment: 'Быстро заменили, спасибо!' },
+    { title: 'Установить Microsoft Office', description: 'На новом компьютере нужно установить Microsoft Office 2021. Компьютер уже подключён к сети.', categoryId: catSW.id, sla: catSW.slaHours, priority: 'MEDIUM', creator: user3, status: 'OPEN', location: '118' },
+    { title: 'Не могу войти в 1С', description: 'При входе в 1С:Бухгалтерию выдаёт ошибку "Неверный пароль", хотя пароль точно правильный.', categoryId: catAccess.id, sla: catAccess.slaHours, priority: 'HIGH', creator: user1, status: 'IN_PROGRESS', assignee: superadmin, location: '203' },
+    { title: 'Медленно работает компьютер', description: 'Компьютер очень медленно загружается и зависает при открытии нескольких программ.', categoryId: catHW.id, sla: catHW.slaHours, priority: 'MEDIUM', creator: user2, status: 'OPEN', location: '310' },
+    { title: 'Нет доступа к сетевой папке', description: 'Не могу открыть сетевую папку. Пишет "Отказано в доступе". Раньше доступ был.', categoryId: catNet.id, sla: catNet.slaHours, priority: 'MEDIUM', creator: user3, status: 'COMPLETED', assignee: admin, location: '215', rating: 4, ratingComment: 'Всё починили, но долго ждала.' },
+    { title: 'Создать учётную запись для нового сотрудника', description: 'Нужно создать учётную запись AD и почтовый ящик для нового сотрудника Козлова А.В., отдел маркетинга.', categoryId: catAccess.id, sla: catAccess.slaHours, priority: 'MEDIUM', creator: user1, status: 'CLOSED', assignee: admin, rating: 5, ratingComment: 'Оперативно сделали!' },
+    { title: 'Не работает проектор в аудитории 501', description: 'Проектор не включается. Лампочка мигает красным. Нужен для лекции завтра утром.', categoryId: catHW.id, sla: catHW.slaHours, priority: 'CRITICAL', creator: user2, status: 'IN_PROGRESS', assignee: admin, location: '501' },
+    { title: 'Обновить антивирус', description: 'На нескольких компьютерах в кабинете 220 устарела база антивируса. Нужно обновить Kaspersky на 5 машинах.', categoryId: catSW.id, sla: catSW.slaHours, priority: 'LOW', creator: user3, status: 'OPEN', location: '220' },
+    { title: 'Настроить WiFi в новом кабинете', description: 'В кабинете 415 после ремонта нет WiFi. Нужно установить и настроить точку доступа.', categoryId: catNet.id, sla: catNet.slaHours, priority: 'MEDIUM', creator: user1, status: 'COMPLETED', assignee: superadmin, location: '415', rating: 5, ratingComment: 'Отлично!' },
+    { title: 'Заблокирована учётная запись', description: 'После нескольких попыток входа заблокировалась моя учётная запись Windows.', categoryId: catAccess.id, sla: catAccess.slaHours, priority: 'HIGH', creator: user2, status: 'CLOSED', assignee: admin, location: '307', rating: 4, ratingComment: 'Разблокировали за 20 минут.' },
+    { title: 'Не печатает принтер Canon', description: 'Принтер Canon i-SENSYS в кабинете 105 перестал печатать. Задания уходят в очередь, но не печатаются.', categoryId: catHW.id, sla: catHW.slaHours, priority: 'MEDIUM', creator: user3, status: 'OPEN', location: '105' },
+    { title: 'Установить Zoom и Teams', description: 'Нужно установить Zoom и Microsoft Teams для проведения онлайн-совещаний. Компьютер в кабинете ректора.', categoryId: catSW.id, sla: catSW.slaHours, priority: 'HIGH', creator: user1, status: 'COMPLETED', assignee: admin, location: '101', rating: 5, ratingComment: 'Всё работает!' },
+    { title: 'Проблема с отправкой вложений', description: 'При попытке отправить письмо с вложением больше 5 МБ выходит ошибка.', categoryId: catMail.id, sla: catMail.slaHours, priority: 'MEDIUM', creator: user2, status: 'IN_PROGRESS', assignee: admin, location: '209' },
+    { title: 'Перенести данные на новый компьютер', description: 'Получил новый компьютер, нужно перенести данные со старого: документы, настройки почты, закладки.', categoryId: catOther.id, sla: catOther.slaHours, priority: 'LOW', creator: user3, status: 'OPEN', location: '402' },
+    { title: 'Не работает телефония', description: 'IP-телефон не регистрируется на сервере. Не могу принимать и совершать звонки уже 2 день.', categoryId: catNet.id, sla: catNet.slaHours, priority: 'HIGH', creator: user1, status: 'OPEN', location: '208' },
+    { title: 'Нужен доступ к CRM-системе', description: 'Перешёл в отдел продаж, нужен доступ к CRM-системе Bitrix24 с правами менеджера.', categoryId: catAccess.id, sla: catAccess.slaHours, priority: 'MEDIUM', creator: user2, status: 'COMPLETED', assignee: superadmin, rating: 3, ratingComment: 'Долго ждал, но в итоге сделали.' },
   ];
 
   for (const td of ticketData) {
     const createdDaysAgo = Math.floor(Math.random() * 30) + 1;
     const createdAt = new Date();
     createdAt.setDate(createdAt.getDate() - createdDaysAgo);
+
+    const deadline = calcDeadline(createdAt, td.sla, td.priority);
 
     const ticket = await prisma.ticket.create({
       data: {
@@ -119,12 +92,14 @@ async function main() {
         location: td.location || null,
         creatorId: td.creator.id,
         assigneeId: td.assignee?.id || null,
+        deadline,
+        rating: td.rating || null,
+        ratingComment: td.ratingComment || null,
         createdAt,
         closedAt: td.status === 'CLOSED' ? new Date(createdAt.getTime() + 86400000 * Math.floor(Math.random() * 5 + 1)) : null,
       },
     });
 
-    // Create status history
     await prisma.statusHistory.create({
       data: { newStatus: 'OPEN', ticketId: ticket.id, changedById: td.creator.id, createdAt },
     });
@@ -133,140 +108,673 @@ async function main() {
       const statusDate = new Date(createdAt.getTime() + 3600000 * Math.floor(Math.random() * 24 + 1));
       await prisma.statusHistory.create({
         data: {
-          oldStatus: 'OPEN',
-          newStatus: td.status === 'CLOSED' ? 'IN_PROGRESS' : td.status,
-          ticketId: ticket.id,
-          changedById: (td.assignee || admin).id,
-          createdAt: statusDate,
+          oldStatus: 'OPEN', newStatus: td.status === 'CLOSED' ? 'IN_PROGRESS' : td.status,
+          ticketId: ticket.id, changedById: (td.assignee || admin).id, createdAt: statusDate,
         },
       });
-
       if (td.status === 'COMPLETED' || td.status === 'CLOSED') {
         const completeDate = new Date(statusDate.getTime() + 3600000 * Math.floor(Math.random() * 48 + 1));
         await prisma.statusHistory.create({
-          data: {
-            oldStatus: 'IN_PROGRESS',
-            newStatus: 'COMPLETED',
-            ticketId: ticket.id,
-            changedById: (td.assignee || admin).id,
-            createdAt: completeDate,
-          },
+          data: { oldStatus: 'IN_PROGRESS', newStatus: 'COMPLETED', ticketId: ticket.id, changedById: (td.assignee || admin).id, createdAt: completeDate },
         });
-
         if (td.status === 'CLOSED') {
           await prisma.statusHistory.create({
-            data: {
-              oldStatus: 'COMPLETED',
-              newStatus: 'CLOSED',
-              ticketId: ticket.id,
-              changedById: (td.assignee || admin).id,
-              createdAt: new Date(completeDate.getTime() + 3600000 * 2),
-            },
+            data: { oldStatus: 'COMPLETED', newStatus: 'CLOSED', ticketId: ticket.id, changedById: (td.assignee || admin).id, createdAt: new Date(completeDate.getTime() + 7200000) },
           });
         }
       }
     }
 
-    // Add some comments
     if (Math.random() > 0.3) {
+      const comments = ['Заявка принята, рассмотрим в ближайшее время.', 'Работаем над решением.', 'Проблема решена. Проверьте.', 'Выезжаем на место.'];
       await prisma.comment.create({
         data: {
-          text: getRandomComment(td.status),
-          ticketId: ticket.id,
-          authorId: (td.assignee || admin).id,
+          text: comments[Math.floor(Math.random() * comments.length)],
+          ticketId: ticket.id, authorId: (td.assignee || admin).id,
           createdAt: new Date(createdAt.getTime() + 3600000 * Math.floor(Math.random() * 12 + 1)),
         },
       });
     }
-
     if (Math.random() > 0.5) {
+      const replies = ['Спасибо, жду.', 'Хорошо, спасибо!', 'Когда примерно будет готово?', 'Всё работает, спасибо!'];
       await prisma.comment.create({
         data: {
-          text: getRandomUserReply(),
-          ticketId: ticket.id,
-          authorId: td.creator.id,
+          text: replies[Math.floor(Math.random() * replies.length)],
+          ticketId: ticket.id, authorId: td.creator.id,
           createdAt: new Date(createdAt.getTime() + 3600000 * Math.floor(Math.random() * 24 + 6)),
         },
       });
     }
-
-    // Internal comment for some tickets
-    if (Math.random() > 0.7) {
-      await prisma.comment.create({
-        data: {
-          text: getRandomInternalComment(),
-          isInternal: true,
-          ticketId: ticket.id,
-          authorId: admin.id,
-          createdAt: new Date(createdAt.getTime() + 3600000 * 2),
-        },
-      });
-    }
   }
+  console.log(`${ticketData.length} tickets created`);
 
-  console.log(`${ticketData.length} tickets created with history and comments`);
-  console.log('Seed completed successfully!');
+  // ===== KNOWLEDGE BASE =====
+  const kbArticles = [
+    {
+      title: 'Настройка электронной почты в Outlook',
+      categoryName: 'Почта',
+      tags: ['outlook', 'почта', 'настройка', 'imap', 'smtp'],
+      content: `Для настройки корпоративной почты в Microsoft Outlook выполните следующие шаги:
+
+1. Откройте Outlook и перейдите в Файл → Настройка учётных записей → Создать.
+2. Выберите "Настроить вручную" и нажмите Далее.
+3. Выберите тип учётной записи IMAP.
+
+Параметры входящего сервера:
+- Сервер: mail.company.ru
+- Порт: 993
+- Шифрование: SSL/TLS
+
+Параметры исходящего сервера (SMTP):
+- Сервер: smtp.company.ru
+- Порт: 587
+- Шифрование: STARTTLS
+
+В качестве логина используйте ваш корпоративный email полностью (например, ivanov@company.ru). Пароль — тот же, что для входа в Windows.
+
+Если после настройки почта не синхронизируется, проверьте подключение к корпоративной сети или VPN. При возникновении ошибки аутентификации обратитесь в IT-отдел для сброса пароля почтового ящика.`
+    },
+    {
+      title: 'Не приходят письма: что делать',
+      categoryName: 'Почта',
+      tags: ['почта', 'входящие', 'проблема', 'спам'],
+      content: `Если вы не получаете входящие письма, выполните следующую диагностику:
+
+1. Проверьте папку "Спам" или "Нежелательная почта" — письмо могло попасть туда автоматически.
+2. Попросите отправителя переслать письмо повторно и проверить, не получил ли он уведомление о недоставке.
+3. Убедитесь, что ваш почтовый ящик не переполнен. Проверьте квоту: Файл → Сведения → Средства очистки.
+
+Если проблема на стороне сервера:
+- Проверьте статус почтового сервера на внутреннем портале.
+- Убедитесь что DNS-записи MX корректны (для администраторов).
+- Проверьте, не заблокирован ли домен отправителя в антиспам-фильтре.
+
+Если ничего не помогло, создайте заявку в HelpDesk с указанием: вашего email, email отправителя, даты и времени отправки письма.`
+    },
+    {
+      title: 'Настройка пересылки писем',
+      categoryName: 'Почта',
+      tags: ['почта', 'пересылка', 'redirect', 'правила'],
+      content: `Для настройки автоматической пересылки писем на другой адрес:
+
+В Outlook:
+1. Перейдите в Файл → Управление правилами и оповещениями.
+2. Нажмите "Создать правило".
+3. Выберите условие — например, "Применить ко всем входящим".
+4. В действии выберите "Переслать" и укажите целевой email.
+5. Нажмите Готово.
+
+В веб-интерфейсе (OWA):
+1. Откройте Параметры → Почта → Пересылка.
+2. Включите пересылку и введите адрес.
+3. Отметьте "Сохранять копию" если нужно хранить письма в исходном ящике.
+
+Важно: пересылка на внешние адреса может быть ограничена политикой безопасности организации. Если опция недоступна, обратитесь к администратору.`
+    },
+    {
+      title: 'Настройка подписи в электронной почте',
+      categoryName: 'Почта',
+      tags: ['почта', 'подпись', 'email', 'шаблон'],
+      content: `Корпоративная подпись должна соответствовать стандарту организации.
+
+Стандартный формат подписи:
+---
+С уважением,
+Иванов Иван Иванович
+Должность | Отдел
+Тел.: +7 (XXX) XXX-XX-XX
+Email: ivanov@company.ru
+---
+
+Настройка в Outlook:
+1. Файл → Параметры → Почта → Подписи.
+2. Нажмите "Создать" и введите имя подписи.
+3. Вставьте текст подписи, отформатируйте шрифт (рекомендуется Calibri 11pt).
+4. Выберите подпись по умолчанию для новых писем и ответов.
+
+Для добавления логотипа: вставьте изображение через кнопку "Рисунок" в редакторе подписи. Используйте картинку размером не более 200x50 пикселей.`
+    },
+    {
+      title: 'Подключение к VPN из дома',
+      categoryName: 'Сеть/VPN',
+      tags: ['vpn', 'удалённый доступ', 'подключение', 'из дома'],
+      content: `Для удалённого подключения к корпоративной сети используется VPN-клиент.
+
+Установка и настройка:
+1. Скачайте VPN-клиент с внутреннего портала (раздел "Программы").
+2. Установите приложение с правами администратора.
+3. Запустите клиент и введите адрес сервера: vpn.company.ru
+4. Логин и пароль — те же, что для входа в Windows.
+
+Частые проблемы:
+- "Connection timeout" — проверьте подключение к интернету, отключите другие VPN.
+- "Authentication failed" — убедитесь что пароль актуален, не включён Caps Lock.
+- Медленная работа — попробуйте подключиться к ближайшему серверу, закройте торренты и стриминг.
+
+VPN необходим для доступа к: сетевым папкам, 1С, внутренним порталам, корпоративной почте (если настроена только для внутренней сети).`
+    },
+    {
+      title: 'WiFi не работает: диагностика',
+      categoryName: 'Сеть/VPN',
+      tags: ['wifi', 'сеть', 'интернет', 'подключение', 'беспроводная'],
+      content: `Пошаговая диагностика проблем с WiFi:
+
+Шаг 1: Проверьте, включён ли WiFi-адаптер. На ноутбуках есть переключатель или комбинация клавиш (обычно Fn+F2 или Fn+F3). В Windows: Параметры → Сеть → WiFi — убедитесь что включён.
+
+Шаг 2: Проверьте, видит ли компьютер сеть. Если корпоративная сеть не отображается, возможно, вы вне зоны покрытия или точка доступа выключена.
+
+Шаг 3: Если сеть видна, но не подключается — "Забудьте" сеть и подключитесь заново. Параметры → Сеть → Управление известными сетями → Выберите сеть → Забыть.
+
+Шаг 4: Перезапустите сетевой адаптер. Откройте cmd от администратора и выполните:
+netsh winsock reset
+netsh int ip reset
+ipconfig /release
+ipconfig /renew
+
+Если проблема сохраняется, обратитесь в IT-отдел с указанием номера кабинета — возможно, требуется перезагрузка точки доступа.`
+    },
+    {
+      title: 'Подключение сетевого диска',
+      categoryName: 'Сеть/VPN',
+      tags: ['сетевой диск', 'smb', 'общая папка', 'подключение'],
+      content: `Для подключения сетевого диска в Windows:
+
+1. Откройте Проводник и нажмите "Этот компьютер".
+2. На верхней панели нажмите "Подключить сетевой диск".
+3. Выберите букву диска (например, Z:).
+4. В строке "Папка" введите путь: \\\\server\\shared (замените на актуальный).
+5. Установите галочку "Восстанавливать при входе в систему".
+6. Нажмите Готово.
+
+Если запрашивает логин/пароль — используйте корпоративные учётные данные в формате: DOMAIN\\username.
+
+При ошибке "Отказано в доступе" — вам не предоставлены права на эту папку. Обратитесь к руководителю для согласования доступа, затем создайте заявку в IT-отдел.`
+    },
+    {
+      title: 'Медленный интернет: причины и решения',
+      categoryName: 'Сеть/VPN',
+      tags: ['интернет', 'скорость', 'медленный', 'диагностика'],
+      content: `Если интернет работает медленно, проверьте следующее:
+
+1. Перезагрузите компьютер и роутер/точку доступа (если есть доступ).
+2. Проверьте скорость на speedtest.net — сравните с нормой (обычно 50-100 Мбит/с по кабелю).
+3. Отключите ненужные программы, потребляющие трафик (обновления, облачная синхронизация, стриминг).
+4. Если подключены по WiFi — попробуйте подключиться кабелем для сравнения.
+5. Проверьте, не скачивают ли коллеги в том же кабинете большие файлы.
+
+Для проверки в командной строке:
+- ping google.com — время ответа должно быть менее 50мс
+- tracert google.com — покажет маршрут и задержки на каждом узле
+
+Если проблема массовая (медленно у всех в здании) — это может быть проблема провайдера или магистрального канала. Создайте заявку с пометкой "Критический".`
+    },
+    {
+      title: 'Принтер не печатает: пошаговая диагностика',
+      categoryName: 'Оборудование',
+      tags: ['принтер', 'печать', 'ошибка', 'диагностика'],
+      content: `Если принтер перестал печатать, выполните следующие шаги:
+
+1. Убедитесь что принтер включён, индикаторы горят штатно (зелёный/синий). Если мигает красный — обратите внимание на дисплей принтера.
+2. Проверьте подключение — USB-кабель или сетевой кабель должны быть надёжно подключены.
+3. Откройте "Устройства и принтеры" в Windows. Проверьте статус принтера — не должно быть "Автономная работа" или "Приостановлено".
+4. Очистите очередь печати: правый клик по принтеру → "Просмотр очереди" → Принтер → "Очистить очередь".
+5. Перезапустите службу печати: Win+R → services.msc → найдите "Диспетчер печати" → Перезапустить.
+6. Попробуйте напечатать тестовую страницу: правый клик → Свойства → Напечатать пробную.
+
+Если принтер сетевой — проверьте что он доступен по сети: ping IP_принтера. IP можно найти в настройках принтера (обычно кнопка меню → Сеть → TCP/IP).`
+    },
+    {
+      title: 'Замена картриджа в принтере',
+      categoryName: 'Оборудование',
+      tags: ['принтер', 'картридж', 'тонер', 'замена'],
+      content: `Инструкция по самостоятельной замене картриджа:
+
+Для лазерных принтеров HP/Canon:
+1. Откройте переднюю крышку принтера.
+2. Аккуратно извлеките старый картридж, потянув за ручку.
+3. Распакуйте новый картридж, снимите защитную ленту (оранжевую/жёлтую).
+4. Слегка покачайте картридж из стороны в сторону для равномерного распределения тонера.
+5. Вставьте новый картридж по направляющим до щелчка.
+6. Закройте крышку.
+
+Важно: не прикасайтесь к фотобарабану (зелёный/синий валик) — отпечатки пальцев ухудшат качество печати. Использованные картриджи сдавайте на утилизацию в IT-отдел.
+
+Если после замены принтер показывает ошибку — извлеките и заново установите картридж, убедившись в полной фиксации.`
+    },
+    {
+      title: 'Второй монитор не определяется',
+      categoryName: 'Оборудование',
+      tags: ['монитор', 'дисплей', 'hdmi', 'vga', 'второй экран'],
+      content: `Если второй монитор не определяется компьютером:
+
+1. Проверьте физическое подключение: кабель HDMI/VGA/DisplayPort должен быть надёжно вставлен с обеих сторон.
+2. Убедитесь что монитор включён и выбран правильный вход (кнопка Input/Source на мониторе).
+3. В Windows: правый клик на рабочем столе → Параметры дисплея → нажмите "Обнаружить".
+4. Попробуйте комбинацию Win+P и выберите "Расширить" или "Дублировать".
+5. Проверьте драйвер видеокарты: Диспетчер устройств → Видеоадаптеры → Обновить драйвер.
+
+Если подключаете через переходник (например, USB-C → HDMI) — убедитесь что переходник поддерживает видеовыход. Не все USB-хабы передают видеосигнал.
+
+При использовании док-станции — перезагрузите компьютер с подключённой станцией.`
+    },
+    {
+      title: 'Ноутбук не включается',
+      categoryName: 'Оборудование',
+      tags: ['ноутбук', 'не включается', 'питание', 'батарея'],
+      content: `Если ноутбук не реагирует на кнопку включения:
+
+1. Подключите зарядное устройство и подождите 15-20 минут. Возможно, батарея полностью разрядилась.
+2. Проверьте индикатор зарядки — если не горит, попробуйте другую розетку или другое зарядное устройство.
+3. Выполните аппаратный сброс: отключите зарядку, зажмите кнопку питания на 15-20 секунд, отпустите, подключите зарядку и попробуйте включить.
+4. Если экран чёрный, но индикаторы горят — попробуйте подключить внешний монитор (возможна поломка матрицы).
+5. Проверьте, не в режиме ли гибернации ноутбук — нажмите кнопку питания один раз коротко.
+
+Если ничего не помогло — не пытайтесь разбирать ноутбук самостоятельно. Создайте заявку в IT-отдел с описанием модели и симптомов.`
+    },
+    {
+      title: 'Клавиатура и мышь не работают',
+      categoryName: 'Оборудование',
+      tags: ['клавиатура', 'мышь', 'usb', 'bluetooth', 'периферия'],
+      content: `Диагностика проблем с клавиатурой и мышью:
+
+Проводные устройства:
+1. Переключите USB-кабель в другой порт (желательно напрямую, без хабов).
+2. Проверьте кабель на повреждения.
+3. Попробуйте другую клавиатуру/мышь для проверки порта.
+
+Беспроводные устройства:
+1. Замените батарейки или зарядите аккумулятор.
+2. Проверьте USB-приёмник — он должен быть вставлен в порт. Переключите в другой порт.
+3. Для Bluetooth: Параметры → Bluetooth → убедитесь что включён, удалите устройство и подключите заново.
+4. Убедитесь что расстояние до приёмника не более 5-10 метров без препятствий.
+
+Если клавиатура/мышь не работают только при загрузке Windows, но работают в BIOS — проблема с драйверами. Обратитесь в IT-отдел.`
+    },
+    {
+      title: 'Установка Microsoft Office',
+      categoryName: 'Программное обеспечение',
+      tags: ['office', 'word', 'excel', 'установка', 'microsoft'],
+      content: `Для установки Microsoft Office на рабочий компьютер:
+
+Способ 1 — через корпоративный портал:
+1. Откройте portal.office.com и войдите с корпоративной учётной записью.
+2. Нажмите "Установить Office" → "Приложения Office 365".
+3. Запустите скачанный установщик и дождитесь завершения (10-30 минут).
+
+Способ 2 — через IT-отдел:
+Создайте заявку с указанием: номер кабинета, имя компьютера (можно узнать: правый клик "Этот компьютер" → Свойства), какие приложения нужны (Word, Excel, PowerPoint, Outlook, Teams).
+
+После установки:
+- Запустите любое приложение Office и войдите с корпоративной учётной записью для активации.
+- Обновления устанавливаются автоматически.
+
+Важно: не устанавливайте пиратские версии Office — это нарушение лицензионной политики организации.`
+    },
+    {
+      title: 'Обновление Windows: инструкция',
+      categoryName: 'Программное обеспечение',
+      tags: ['windows', 'обновление', 'update', 'безопасность'],
+      content: `Регулярные обновления Windows критически важны для безопасности.
+
+Как проверить и установить обновления:
+1. Откройте Параметры → Обновление и безопасность → Центр обновления Windows.
+2. Нажмите "Проверить наличие обновлений".
+3. Если обновления найдены — нажмите "Загрузить и установить".
+4. После загрузки может потребоваться перезагрузка. Сохраните документы и нажмите "Перезагрузить сейчас".
+
+Обновления классифицируются:
+- Критические (безопасность) — устанавливайте сразу
+- Функциональные — можно отложить
+- Драйверы — при необходимости
+
+Если обновление зависло или вызвало ошибку — не выключайте компьютер принудительно. Подождите 30-60 минут. Если прогресс не меняется, создайте заявку.
+
+Корпоративные обновления могут управляться централизованно через WSUS. В этом случае некоторые обновления будут установлены автоматически по расписанию.`
+    },
+    {
+      title: 'Настройка 1С:Предприятие',
+      categoryName: 'Программное обеспечение',
+      tags: ['1с', 'бухгалтерия', 'предприятие', 'настройка'],
+      content: `Подключение к базе 1С:Предприятие:
+
+1. Запустите ярлык "1С:Предприятие" на рабочем столе.
+2. В окне запуска нажмите "Добавить" для подключения базы.
+3. Выберите "Добавление в список существующей информационной базы".
+4. Введите название базы (например, "Бухгалтерия") и нажмите Далее.
+5. Выберите тип расположения: "На сервере 1С:Предприятие".
+6. Укажите параметры: Кластер серверов: server1c, Имя базы: buhgalteria.
+7. Нажмите Готово.
+
+При ошибке "Неверный пароль":
+- Убедитесь что Caps Lock выключен.
+- Попросите администратора 1С сбросить пароль.
+- Проверьте, не заблокирована ли ваша учётная запись в 1С.
+
+При ошибке подключения к серверу — проверьте сетевое соединение и доступность сервера по сети.`
+    },
+    {
+      title: 'Антивирус: проверка и обновление',
+      categoryName: 'Программное обеспечение',
+      tags: ['антивирус', 'касперский', 'проверка', 'вирус', 'безопасность'],
+      content: `Корпоративный антивирус (Kaspersky Endpoint Security) обновляется автоматически, но полезно знать как проверить его работу.
+
+Проверка статуса:
+1. Найдите значок антивируса в системном трее (правый нижний угол).
+2. Двойной клик — откроется главное окно. Статус должен быть "Защита активна" (зелёный).
+3. Проверьте дату последнего обновления баз — она не должна быть старше 3 дней.
+
+Запуск полной проверки:
+1. Откройте антивирус → Проверка → Полная проверка → Запустить.
+2. Проверка может занять 1-3 часа. Компьютером можно пользоваться, но он может работать медленнее.
+
+Если антивирус нашёл угрозу — не паникуйте. В большинстве случаев он автоматически помещает файл в карантин. Не пытайтесь восстановить файлы из карантина самостоятельно.
+
+При подозрении на заражение — немедленно отключите компьютер от сети (выдерните кабель или отключите WiFi) и создайте заявку.`
+    },
+    {
+      title: 'Браузер работает медленно',
+      categoryName: 'Программное обеспечение',
+      tags: ['браузер', 'chrome', 'firefox', 'медленный', 'кэш'],
+      content: `Если браузер (Chrome, Firefox, Edge) работает медленно:
+
+Очистка кэша и данных:
+1. Chrome: Ctrl+Shift+Delete → выберите "За всё время" → Кэшированные изображения и файлы → Удалить данные.
+2. Firefox: Ctrl+Shift+Delete → Всё → Кэш → Удалить сейчас.
+
+Отключение расширений:
+1. Введите в адресной строке: chrome://extensions (или about:addons для Firefox).
+2. Отключите все расширения и проверьте скорость.
+3. Включайте по одному для определения проблемного.
+
+Другие способы:
+- Закройте неиспользуемые вкладки — каждая потребляет оперативную память.
+- Обновите браузер до последней версии.
+- Проверьте количество свободной RAM: Ctrl+Shift+Esc → Производительность. Если используется более 85% — закройте ненужные программы.
+
+Если проблема только на определённых сайтах — возможно, дело в самом сайте или блокировке на уровне сети.`
+    },
+    {
+      title: 'Сброс пароля учётной записи',
+      categoryName: 'Доступы/Учётные записи',
+      tags: ['пароль', 'сброс', 'учётная запись', 'ad'],
+      content: `Если вы забыли пароль или он перестал работать:
+
+Самостоятельный сброс (если настроен):
+1. На экране входа в Windows нажмите "Забыли пароль?".
+2. Ответьте на контрольные вопросы или введите код из SMS.
+3. Задайте новый пароль (минимум 8 символов, буквы, цифры, спецсимвол).
+
+Через IT-отдел:
+1. Создайте заявку в HelpDesk (можно через Telegram-бот).
+2. Укажите ваше ФИО и логин.
+3. Администратор сбросит пароль и сообщит временный.
+4. При первом входе система попросит изменить временный пароль.
+
+Требования к паролю:
+- Минимум 8 символов
+- Заглавные и строчные буквы
+- Хотя бы одна цифра
+- Хотя бы один спецсимвол (!@#$%^&*)
+- Нельзя использовать 5 предыдущих паролей
+- Пароль сменяется каждые 90 дней`
+    },
+    {
+      title: 'Создание новой учётной записи',
+      categoryName: 'Доступы/Учётные записи',
+      tags: ['учётная запись', 'active directory', 'новый сотрудник'],
+      content: `Для создания учётной записи нового сотрудника необходимо:
+
+1. Руководитель подразделения подаёт заявку в HelpDesk с информацией:
+   - ФИО сотрудника
+   - Должность и подразделение
+   - Дата выхода на работу
+   - Список необходимых доступов (1С, CRM, сетевые папки и т.д.)
+
+2. IT-отдел создаёт:
+   - Учётную запись Active Directory (логин формата: фамилия на латинице)
+   - Корпоративный email
+   - Доступ к необходимым системам
+
+3. Сроки: стандартно — 1 рабочий день, при подаче заявки за 3+ дня до выхода сотрудника.
+
+Временный пароль передаётся лично сотруднику или его руководителю. При первом входе необходимо сменить пароль.`
+    },
+    {
+      title: 'Разблокировка учётной записи',
+      categoryName: 'Доступы/Учётные записи',
+      tags: ['блокировка', 'учётная запись', 'разблокировка'],
+      content: `Учётная запись блокируется автоматически после 5 неверных попыток ввода пароля.
+
+Причины блокировки:
+- Многократный неверный ввод пароля
+- Сохранённый старый пароль в почтовом клиенте, VPN или мобильном устройстве
+- Кто-то пытается подобрать ваш пароль (сообщите в IT-отдел!)
+
+Автоматическая разблокировка происходит через 30 минут. Если ждать нет возможности:
+1. Позвоните в IT-отдел или создайте заявку через Telegram-бот.
+2. Администратор разблокирует учётную запись в течение 15 минут.
+
+После разблокировки: проверьте все устройства и программы, где сохранён ваш пароль, и обновите его везде.`
+    },
+    {
+      title: 'Настройка двухфакторной аутентификации',
+      categoryName: 'Доступы/Учётные записи',
+      tags: ['2fa', 'аутентификация', 'безопасность', 'двухфакторная'],
+      content: `Двухфакторная аутентификация (2FA) добавляет дополнительный уровень защиты.
+
+Настройка 2FA для корпоративных систем:
+1. Установите приложение-аутентификатор на телефон: Microsoft Authenticator или Google Authenticator.
+2. Войдите в систему и перейдите в настройки безопасности.
+3. Выберите "Настроить двухфакторную аутентификацию".
+4. Отсканируйте QR-код приложением аутентификатора.
+5. Введите 6-значный код из приложения для подтверждения.
+
+При каждом входе после ввода пароля потребуется код из приложения. Коды обновляются каждые 30 секунд.
+
+Важно: сохраните резервные коды в надёжном месте. Если потеряете телефон — обратитесь в IT-отдел для сброса 2FA.`
+    },
+    {
+      title: 'Как распознать фишинговое письмо',
+      categoryName: 'Безопасность',
+      tags: ['фишинг', 'безопасность', 'спам', 'мошенничество'],
+      content: `Фишинг — это попытка мошенников получить ваши данные через поддельные письма и сайты.
+
+Признаки фишингового письма:
+1. Подозрительный отправитель — адрес похож на корпоративный, но с ошибками (например, admin@helpd3sk.ru вместо admin@helpdesk.ru).
+2. Срочность — "Ваш аккаунт будет заблокирован через 24 часа!", "Срочно подтвердите данные!".
+3. Ссылки ведут на неизвестные сайты — наведите мышь на ссылку (НЕ нажимайте!) и проверьте URL внизу экрана.
+4. Вложения с подозрительными расширениями: .exe, .scr, .bat, .js.
+5. Ошибки в тексте, странное оформление.
+
+Что делать при получении подозрительного письма:
+- НЕ нажимайте на ссылки и НЕ открывайте вложения.
+- Перешлите письмо в IT-отдел (security@company.ru).
+- Удалите письмо.
+
+Если вы уже нажали на ссылку или ввели данные — немедленно смените пароль и сообщите в IT-отдел!`
+    },
+    {
+      title: 'Правила создания надёжного пароля',
+      categoryName: 'Безопасность',
+      tags: ['пароль', 'безопасность', 'надёжность', 'рекомендации'],
+      content: `Надёжный пароль — основа информационной безопасности.
+
+Как создать надёжный пароль:
+1. Длина — минимум 12 символов (чем длиннее, тем лучше).
+2. Используйте комбинацию: заглавные буквы, строчные буквы, цифры, спецсимволы.
+3. Не используйте: имена, даты рождения, простые слова, последовательности (123456, qwerty).
+
+Метод парольной фразы:
+Возьмите запоминающуюся фразу и преобразуйте: "Мой кот Барсик родился в 2019!" → "MkBrv2019!" — легко запомнить, сложно подобрать.
+
+Правила безопасности:
+- Разные пароли для разных систем.
+- Не записывайте пароли на стикерах возле монитора.
+- Используйте менеджер паролей (KeePass рекомендован IT-отделом).
+- Меняйте пароль каждые 90 дней (система напомнит).
+- Никогда не сообщайте пароль по телефону или email — IT-отдел никогда не запрашивает пароль!`
+    },
+    {
+      title: 'Резервное копирование данных',
+      categoryName: 'Безопасность',
+      tags: ['бэкап', 'резервное копирование', 'данные', 'восстановление'],
+      content: `Резервное копирование защищает ваши данные от потери.
+
+Что копируется автоматически:
+- Документы на сетевых дисках — ежедневно (хранение 30 дней).
+- Базы 1С — каждые 4 часа.
+- Корпоративная почта — непрерывно (серверная репликация).
+
+Что НЕ копируется:
+- Файлы на рабочем столе и в локальных папках (C:\\Users\\...).
+- Содержимое личных флешек.
+
+Рекомендации:
+1. Храните рабочие файлы на сетевом диске, а не на рабочем столе.
+2. Для особо важных документов делайте копию в облачное хранилище (OneDrive корпоративный).
+3. Если случайно удалили файл с сетевого диска — обратитесь в IT-отдел. Восстановление возможно из бэкапа в течение 30 дней.
+
+Для восстановления данных создайте заявку с указанием: путь к файлу/папке, примерная дата последнего изменения.`
+    },
+    {
+      title: 'Как создать заявку в HelpDesk',
+      categoryName: 'Общие вопросы',
+      tags: ['заявка', 'helpdesk', 'инструкция', 'как создать'],
+      content: `Создать заявку в IT-отдел можно двумя способами:
+
+Через веб-интерфейс:
+1. Откройте helpdesk.company.ru и войдите с корпоративной учётной записью.
+2. Нажмите "Создать заявку".
+3. Заполните: тему (кратко), категорию, приоритет, описание (подробно), аудиторию/кабинет.
+4. При необходимости прикрепите файлы (скриншоты, логи).
+5. Нажмите "Отправить".
+
+Через Telegram-бот:
+1. Найдите бота @HelpDeskBot в Telegram.
+2. Нажмите /start для регистрации.
+3. Нажмите "Новая заявка" и следуйте инструкциям.
+4. Можно прикрепить фото проблемы.
+
+После создания заявка проходит модерацию администратором, после чего принимается в работу. Вы получите уведомление о каждом изменении статуса.
+
+Для срочных проблем (не работает интернет у всего отдела, не печатает единственный принтер) — ставьте приоритет "Критический".`
+    },
+    {
+      title: 'Что такое SLA и сроки обработки заявок',
+      categoryName: 'Общие вопросы',
+      tags: ['sla', 'сроки', 'обработка', 'приоритет'],
+      content: `SLA (Service Level Agreement) — это соглашение об уровне сервиса, определяющее сроки обработки заявок.
+
+Сроки зависят от категории и приоритета:
+
+Категория "Доступы/Учётные записи": базовый SLA 12 часов
+- Критический: 3 часа
+- Высокий: 6 часов
+- Средний: 12 часов
+- Низкий: 24 часа
+
+Категория "Почта" и "Сеть/VPN": базовый SLA 24 часа
+- Критический: 6 часов
+- Высокий: 12 часов
+- Средний: 24 часа
+- Низкий: 48 часов
+
+Категория "ПО": базовый SLA 48 часов
+Категория "Оборудование": базовый SLA 72 часа (может требовать закупки запчастей)
+
+SLA считается с момента одобрения заявки модератором. Если заявка просрочена — она автоматически выделяется в системе, и администраторы получают уведомление.`
+    },
+    {
+      title: 'Часто задаваемые вопросы (FAQ)',
+      categoryName: 'Общие вопросы',
+      tags: ['faq', 'вопросы', 'ответы', 'помощь'],
+      content: `Ответы на самые частые вопросы:
+
+В: Как узнать имя моего компьютера?
+О: Правый клик на "Этот компьютер" → Свойства → Имя компьютера. Или: Win+R → cmd → hostname.
+
+В: Как сделать скриншот?
+О: Нажмите Win+Shift+S — появится инструмент выделения области. Снимок сохранится в буфер обмена, вставьте его (Ctrl+V) в заявку или документ.
+
+В: Как узнать свой IP-адрес?
+О: Win+R → cmd → ipconfig. Смотрите строку "IPv4-адрес".
+
+В: Почему я не могу установить программу?
+О: На корпоративных компьютерах установка ПО ограничена. Создайте заявку с указанием нужной программы.
+
+В: Как подключиться к WiFi?
+О: Корпоративная сеть: CompanyWiFi. Логин и пароль — ваши доменные учётные данные.
+
+В: Кто может создать заявку?
+О: Любой сотрудник организации. Для регистрации достаточно корпоративного email или Telegram.`
+    },
+    {
+      title: 'Удалённый рабочий стол (RDP)',
+      categoryName: 'Сеть/VPN',
+      tags: ['rdp', 'удалённый рабочий стол', 'remote desktop'],
+      content: `Подключение к рабочему компьютеру через удалённый рабочий стол:
+
+Требования:
+- VPN-подключение к корпоративной сети (если работаете из дома).
+- Рабочий компьютер должен быть включён.
+- На рабочем компьютере должен быть разрешён удалённый доступ.
+
+Подключение:
+1. На домашнем компьютере: Win+R → mstsc.
+2. Введите IP-адрес или имя рабочего компьютера.
+3. Нажмите "Подключить".
+4. Введите логин (DOMAIN\\username) и пароль.
+
+Настройки для комфортной работы:
+- Вкладка "Экран" — установите разрешение, удобное для вашего монитора.
+- Вкладка "Локальные ресурсы" — подключите принтеры и буфер обмена.
+- Вкладка "Взаимодействие" — при медленном соединении выберите "Низкая скорость".
+
+Если не удаётся подключиться — убедитесь что VPN активен и рабочий компьютер включён (попросите коллегу проверить).`
+    },
+    {
+      title: 'Работа с архивами (ZIP, RAR)',
+      categoryName: 'Программное обеспечение',
+      tags: ['архив', 'zip', 'rar', '7zip', 'сжатие'],
+      content: `Инструкция по работе с архивами на рабочем компьютере:
+
+Создание архива:
+1. Выделите файлы/папки, которые нужно архивировать.
+2. Правый клик → 7-Zip → "Добавить к архиву..." (или "Отправить → Сжатая ZIP-папка").
+3. Выберите формат (ZIP для совместимости, 7z для максимального сжатия).
+4. При необходимости установите пароль на архив.
+
+Распаковка архива:
+1. Правый клик на архиве → 7-Zip → "Извлечь в текущую папку" или "Извлечь в...".
+2. Если архив защищён паролем — введите пароль.
+
+Если архив не открывается:
+- Возможно, файл повреждён при скачивании — скачайте заново.
+- Формат .rar требует установленного WinRAR или 7-Zip.
+- Антивирус может блокировать архивы с исполняемыми файлами внутри.`
+    },
+  ];
+
+  for (const article of kbArticles) {
+    await prisma.knowledgeBase.create({
+      data: {
+        title: article.title,
+        content: article.content,
+        categoryName: article.categoryName,
+        tags: article.tags,
+        viewCount: Math.floor(Math.random() * 496) + 5,
+      },
+    });
+  }
+  console.log(`${kbArticles.length} knowledge base articles created`);
+
+  console.log('Seed completed!');
   console.log('\nTest accounts:');
   console.log('  Superadmin: admin@helpdesk.ru / admin123');
   console.log('  Admin:      ivanov@helpdesk.ru / admin123');
   console.log('  User:       sidorova@mail.ru / user123');
 }
 
-function getRandomComment(status) {
-  const comments = {
-    OPEN: [
-      'Заявка принята, рассмотрим в ближайшее время.',
-      'Спасибо за обращение, изучаем проблему.',
-      'Уточняем детали, свяжемся с вами.',
-    ],
-    IN_PROGRESS: [
-      'Работаем над решением. Ожидайте.',
-      'Обнаружили причину проблемы, исправляем.',
-      'Проблема на стороне сервера, устраняем.',
-      'Выезжаем на место для диагностики.',
-    ],
-    COMPLETED: [
-      'Проблема решена. Проверьте, пожалуйста.',
-      'Выполнено. Если возникнут вопросы, обращайтесь.',
-      'Готово! Перезагрузите компьютер для применения изменений.',
-    ],
-    CLOSED: [
-      'Заявка закрыта. Спасибо за обращение.',
-      'Подтверждено решение. Заявка закрыта.',
-    ],
-  };
-  const pool = comments[status] || comments.OPEN;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
-function getRandomUserReply() {
-  const replies = [
-    'Спасибо, жду.',
-    'Хорошо, спасибо за оперативность!',
-    'Когда примерно будет готово?',
-    'Понял, спасибо.',
-    'Проблема всё ещё сохраняется.',
-    'Всё ��аботает, спасибо!',
-  ];
-  return replies[Math.floor(Math.random() * replies.length)];
-}
-
-function getRandomInternalComment() {
-  const notes = [
-    'Нужно заказать запчасть у поставщика.',
-    'Проблема связана с обновлением сервера вче��а.',
-    'Передал задачу Дмитрию.',
-    'Требуется согласование с руководством.',
-    'Аналогичная проблема была в прошлом месяце — решение в базе знаний.',
-  ];
-  return notes[Math.floor(Math.random() * notes.length)];
-}
-
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => { console.error(e); process.exit(1); })
+  .finally(async () => { await prisma.$disconnect(); });

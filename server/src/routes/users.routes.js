@@ -13,6 +13,7 @@ router.patch('/profile', usersController.updateProfile);
 // Admin routes
 router.get('/', roleMiddleware('ADMIN', 'SUPERADMIN'), usersController.getUsers);
 router.get('/:id', roleMiddleware('ADMIN', 'SUPERADMIN'), usersController.getUser);
+router.post('/', roleMiddleware('SUPERADMIN'), usersController.createUser);
 router.patch('/:id', roleMiddleware('SUPERADMIN'), usersController.updateUser);
 router.delete('/:id', roleMiddleware('SUPERADMIN'), usersController.deleteUser);
 
