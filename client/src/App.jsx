@@ -10,6 +10,7 @@ import CreateTicketPage from './pages/CreateTicketPage';
 import UsersPage from './pages/UsersPage';
 import ModerationPage from './pages/ModerationPage';
 import ProfilePage from './pages/ProfilePage';
+import KnowledgeBasePage from './pages/KnowledgeBasePage';
 
 function ProtectedRoute({ children, adminOnly, superOnly }) {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="tickets" element={<TicketsPage />} />
           <Route path="tickets/new" element={<CreateTicketPage />} />
           <Route path="tickets/:id" element={<TicketDetailPage />} />
+          <Route path="knowledge-base" element={<KnowledgeBasePage />} />
           <Route path="moderation" element={<ProtectedRoute adminOnly><ModerationPage /></ProtectedRoute>} />
           <Route path="users" element={<ProtectedRoute superOnly><UsersPage /></ProtectedRoute>} />
           <Route path="profile" element={<ProfilePage />} />

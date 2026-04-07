@@ -40,6 +40,7 @@ model User {
   password         String?
   fullName         String
   role             Role     @default(USER)
+  employeeId       String?  @unique
   telegramId       String?  @unique
   telegramUsername  String?
   isActive         Boolean  @default(true)
@@ -57,6 +58,7 @@ model Category {
   name        String   @unique
   description String?
   isActive    Boolean  @default(true)
+  slaHours    Int      @default(48)
   tickets     Ticket[]
 }
 
@@ -68,6 +70,10 @@ model Ticket {
   priority    TicketPriority @default(MEDIUM)
   source      TicketSource   @default(WEB)
   location    String?
+
+  deadline    DateTime?
+  rating      Int?
+  ratingComment String?
 
   categoryId Int
   category   Category @relation(fields: [categoryId], references: [id])
@@ -84,6 +90,18 @@ model Ticket {
 
   comments      Comment[]
   statusHistory StatusHistory[]
+  attachments   Attachment[]
+}
+
+model Attachment {
+  id         Int      @id @default(autoincrement())
+  filename   String
+  originalName String
+  mimeType   String
+  size       Int
+  ticketId   Int
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
 }
 
 model Comment {
@@ -120,4 +138,16 @@ model RefreshToken {
   userId    Int
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+model KnowledgeBase {
+  id         Int      @id @default(autoincrement())
+  title      String
+  content    String
+  categoryName String
+  tags       String[]
+  isPublished Boolean @default(true)
+  viewCount  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }

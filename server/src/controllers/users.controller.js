@@ -13,6 +13,7 @@ exports.getUsers = async (req, res, next) => {
       where.OR = [
         { fullName: { contains: search, mode: 'insensitive' } },
         { email: { contains: search, mode: 'insensitive' } },
+        { employeeId: { contains: search, mode: 'insensitive' } },
       ];
     }
 
@@ -27,6 +28,7 @@ exports.getUsers = async (req, res, next) => {
           fullName: true,
           role: true,
           phone: true,
+          employeeId: true,
           isActive: true,
           telegramUsername: true,
           createdAt: true,
@@ -58,6 +60,7 @@ exports.getUser = async (req, res, next) => {
         fullName: true,
         role: true,
         phone: true,
+        employeeId: true,
         isActive: true,
         telegramUsername: true,
         createdAt: true,
@@ -75,10 +78,68 @@ exports.getUser = async (req, res, next) => {
   }
 };
 
+// Create a new user (admin adds people to the system)
+exports.createUser = async (req, res, next) => {
+  try {
+    const { fullName, email, phone, employeeId, role, password } = req.body;
+
+    if (!fullName) {
+      return res.status(400).json({ error: 'ФИО обязательно' });
+    }
+
+    // Check for duplicates
+    if (email) {
+      const existingEmail = await prisma.user.findUnique({ where: { email } });
+      if (existingEmail) {
+        return res.status(400).json({ error: 'Пользователь с таким email уже существует' });
+      }
+    }
+
+    if (employeeId) {
+      const existingEmp = await prisma.user.findUnique({ where: { employeeId } });
+      if (existingEmp) {
+        return res.status(400).json({ error: 'Пользователь с таким номером учётки уже существует' });
+      }
+    }
+
+    const data = {
+      fullName,
+      email: email || null,
+      phone: phone || null,
+      employeeId: employeeId || null,
+      role: role || 'USER',
+    };
+
+    // If password provided, hash it
+    if (password) {
+      data.password = await bcrypt.hash(password, 10);
+    }
+
+    const user = await prisma.user.create({
+      data,
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+        role: true,
+        phone: true,
+        employeeId: true,
+        isActive: true,
+        telegramUsername: true,
+        createdAt: true,
+      },
+    });
+
+    res.status(201).json(user);
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.updateUser = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { role, isActive, fullName, phone, email } = req.body;
+    const { role, isActive, fullName, phone, email, employeeId } = req.body;
 
     const existing = await prisma.user.findUnique({ where: { id: parseInt(id) } });
     if (!existing) {
@@ -91,6 +152,7 @@ exports.updateUser = async (req, res, next) => {
     if (fullName) updateData.fullName = fullName;
     if (phone !== undefined) updateData.phone = phone;
     if (email) updateData.email = email;
+    if (employeeId !== undefined) updateData.employeeId = employeeId || null;
 
     const user = await prisma.user.update({
       where: { id: parseInt(id) },
@@ -101,6 +163,7 @@ exports.updateUser = async (req, res, next) => {
         fullName: true,
         role: true,
         phone: true,
+        employeeId: true,
         isActive: true,
         telegramUsername: true,
         createdAt: true,
@@ -163,6 +226,7 @@ exports.updateProfile = async (req, res, next) => {
         fullName: true,
         role: true,
         phone: true,
+        employeeId: true,
         telegramUsername: true,
         createdAt: true,
       },
