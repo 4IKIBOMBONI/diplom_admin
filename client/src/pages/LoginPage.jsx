@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginPage() {
@@ -115,6 +115,12 @@ export default function LoginPage() {
             >
               {isRegister ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться'}
             </button>
+          </div>
+
+          <div className="mt-4 pt-4 border-t border-gray-200 text-center">
+            <Link to="/submit" className="text-sm text-gray-600 hover:text-primary-500 hover:underline">
+              Подать заявку без регистрации
+            </Link>
           </div>
         </div>
       </div>

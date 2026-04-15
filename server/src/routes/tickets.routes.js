@@ -35,10 +35,23 @@ const upload = multer({
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Неподдерживаемый ти�� файла'));
+      cb(new Error('Неподдерживаемый тип файла'));
     }
   },
 });
+
+// Public endpoint — no auth required (ticket goes to moderation)
+router.post(
+  '/public',
+  [
+    body('fullName').notEmpty().withMessage('ФИО обязательно'),
+    body('title').notEmpty().withMessage('Тема обязательна'),
+    body('description').notEmpty().withMessage('Описание обязательно'),
+    body('categoryId').isInt().withMessage('Категория обязательна'),
+  ],
+  validate,
+  ticketsController.createPublicTicket
+);
 
 router.use(authMiddleware);
 

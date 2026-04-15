@@ -3,6 +3,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuth } from './context/AuthContext';
 import Layout from './components/Layout/Layout';
 import LoginPage from './pages/LoginPage';
+import PublicSubmitPage from './pages/PublicSubmitPage';
 import DashboardPage from './pages/DashboardPage';
 import TicketsPage from './pages/TicketsPage';
 import TicketDetailPage from './pages/TicketDetailPage';
@@ -46,6 +47,7 @@ export default function App() {
       <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/tickets" /> : <LoginPage />} />
+        <Route path="/submit" element={<PublicSubmitPage />} />
         <Route
           path="/"
           element={

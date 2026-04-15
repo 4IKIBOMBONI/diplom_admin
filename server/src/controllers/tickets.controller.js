@@ -258,6 +258,70 @@ exports.getTicket = async (req, res, next) => {
   }
 };
 
+// Public ticket submission (no auth required). Creates/finds a user by email or phone.
+exports.createPublicTicket = async (req, res, next) => {
+  try {
+    const { fullName, email, phone, title, description, categoryId, location } = req.body;
+
+    if (!fullName || !title || !description || !categoryId) {
+      return res.status(400).json({ error: 'Заполните ФИО, тему, описание и категорию' });
+    }
+    if (!email && !phone) {
+      return res.status(400).json({ error: 'Укажите email или телефон для связи' });
+    }
+
+    // Try to find existing user by email first, then by phone
+    let user = null;
+    if (email) {
+      user = await prisma.user.findUnique({ where: { email } });
+    }
+    if (!user && phone) {
+      user = await prisma.user.findFirst({ where: { phone } });
+    }
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          fullName,
+          email: email || null,
+          phone: phone || null,
+          role: 'USER',
+        },
+      });
+    }
+
+    const category = await prisma.category.findUnique({ where: { id: parseInt(categoryId) } });
+    if (!category) {
+      return res.status(400).json({ error: 'Категория не найдена' });
+    }
+
+    const ticket = await prisma.ticket.create({
+      data: {
+        title,
+        description,
+        categoryId: parseInt(categoryId),
+        priority: 'MEDIUM',
+        location: location || null,
+        source: 'WEB',
+        status: 'PENDING',
+        creatorId: user.id,
+      },
+    });
+
+    await prisma.statusHistory.create({
+      data: {
+        newStatus: 'PENDING',
+        ticketId: ticket.id,
+        changedById: user.id,
+      },
+    });
+
+    res.status(201).json({ id: ticket.id, status: ticket.status });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.createTicket = async (req, res, next) => {
   try {
     const { title, description, categoryId, priority, location, source } = req.body;
