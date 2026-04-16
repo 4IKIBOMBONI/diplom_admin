@@ -169,13 +169,6 @@ bot.onMessage(async (message) => {
 });
 
 async function main() {
-  try {
-    const me = await bot.getMe();
-    log(`Bot identity: ${me?.name || me?.username || 'unknown'} (id=${me?.user_id || '?'})`);
-  } catch (error) {
-    log(`getMe failed: ${error.message}. Продолжаем, возможно неверный токен.`);
-  }
-
   await bot.startPolling();
 }
 

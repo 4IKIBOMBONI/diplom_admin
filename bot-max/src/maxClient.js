@@ -158,8 +158,11 @@ class MaxClient {
           this._dispatch(update).catch((e) => log(`dispatch error: ${e.message}`));
         }
       } catch (error) {
-        log(`polling loop error: ${error.message}. Retry in 5s`);
-        await new Promise((r) => setTimeout(r, 5000));
+        const status = error.response?.status;
+        // 429 — rate limit: ждём дольше (сервер MAX просит не штурмовать)
+        const delay = status === 429 ? 60000 : status === 401 ? 30000 : 5000;
+        log(`polling loop error (status=${status}): ${error.message}. Retry in ${delay / 1000}s`);
+        await new Promise((r) => setTimeout(r, delay));
       }
     }
   }
