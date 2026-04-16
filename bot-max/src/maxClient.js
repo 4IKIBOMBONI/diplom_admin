@@ -11,7 +11,7 @@ function log(msg) {
 }
 
 class MaxClient {
-  constructor(token, baseUrl = 'https://botapi.max.ru') {
+  constructor(token, baseUrl = 'https://platform-api.max.ru') {
     this.token = token;
     this.baseUrl = baseUrl;
     this.http = axios.create({
@@ -19,7 +19,7 @@ class MaxClient {
       timeout: 60000,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
+        'Authorization': token,
       },
     });
     this.listeners = {

@@ -17,7 +17,7 @@ function log(msg) {
 }
 
 const token = process.env.MAX_BOT_TOKEN;
-const baseUrl = process.env.MAX_API_URL || 'https://botapi.max.ru';
+const baseUrl = process.env.MAX_API_URL || 'https://platform-api.max.ru';
 const apiUrl = process.env.API_URL;
 
 log(`MAX bot starting. API_URL=${apiUrl} MAX_API_URL=${baseUrl}`);
