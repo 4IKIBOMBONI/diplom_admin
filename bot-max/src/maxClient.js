@@ -17,7 +17,10 @@ class MaxClient {
     this.http = axios.create({
       baseURL: baseUrl,
       timeout: 60000,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
     });
     this.listeners = {
       message: [],
@@ -41,9 +44,7 @@ class MaxClient {
   }
 
   async getMe() {
-    const { data } = await this.http.get('/me', {
-      params: { access_token: this.token },
-    });
+    const { data } = await this.http.get('/me');
     return data;
   }
 
@@ -62,7 +63,7 @@ class MaxClient {
 
     try {
       const { data } = await this.http.post('/messages', body, {
-        params: { access_token: this.token, chat_id: chatId },
+        params: { chat_id: chatId },
       });
       return data;
     } catch (error) {
@@ -76,7 +77,7 @@ class MaxClient {
       const body = {};
       if (notification) body.notification = notification;
       const { data } = await this.http.post('/answers', body, {
-        params: { access_token: this.token, callback_id: callbackId },
+        params: { callback_id: callbackId },
       });
       return data;
     } catch (error) {
@@ -88,7 +89,7 @@ class MaxClient {
   async uploadImage(fileBuffer, filename) {
     try {
       const { data: uploadInfo } = await this.http.post('/uploads', null, {
-        params: { access_token: this.token, type: 'image' },
+        params: { type: 'image' },
       });
       if (!uploadInfo?.url) {
         log(`uploadImage: no upload url returned`);
@@ -123,7 +124,6 @@ class MaxClient {
 
   async getUpdates() {
     const params = {
-      access_token: this.token,
       limit: 100,
       timeout: 30,
       types: 'message_created,message_callback',
