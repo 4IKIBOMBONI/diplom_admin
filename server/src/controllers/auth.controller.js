@@ -167,6 +167,46 @@ exports.telegramAuth = async (req, res, next) => {
   }
 };
 
+exports.maxAuth = async (req, res, next) => {
+  try {
+    const { maxId, maxUsername, fullName } = req.body;
+    if (!maxId) {
+      return res.status(400).json({ error: 'maxId обязателен' });
+    }
+
+    let user = await prisma.user.findUnique({ where: { maxId: String(maxId) } });
+
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          maxId: String(maxId),
+          maxUsername,
+          fullName: fullName || 'MAX User',
+          role: 'USER',
+        },
+      });
+    } else if (maxUsername && user.maxUsername !== maxUsername) {
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { maxUsername },
+      });
+    }
+
+    if (!user.isActive) {
+      return res.status(403).json({ error: 'Аккаунт деактивирован' });
+    }
+
+    const accessToken = generateAccessToken(user);
+
+    res.json({
+      user: { id: user.id, fullName: user.fullName, role: user.role },
+      accessToken,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 exports.me = async (req, res, next) => {
   try {
     const user = await prisma.user.findUnique({
