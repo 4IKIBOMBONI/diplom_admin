@@ -12,6 +12,7 @@
 | Реалтайм | Socket.IO |
 | Авторизация | JWT (access + refresh tokens), bcrypt |
 | Telegram-бот | node-telegram-bot-api |
+| MAX-бот | собственный клиент botapi.max.ru (axios, long-polling) |
 
 ## Быстрый старт
 
@@ -54,6 +55,21 @@ cd bot
 npm install
 npm run dev
 ```
+
+### 6. Запуск MAX-бота (опционально)
+
+```bash
+# 1. Получите токен у @MasterBot в мессенджере MAX
+# 2. Установите MAX_BOT_TOKEN в server/.env
+# 3. Примените миграцию:
+cd server && npx prisma migrate deploy
+# 4. Запустите:
+cd ../bot-max
+npm install
+npm run dev
+```
+
+Подробнее — `bot-max/README.md`.
 
 ## Тестовые аккаунты
 

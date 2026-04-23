@@ -31,5 +31,6 @@ router.post('/refresh', authController.refresh);
 router.post('/logout', authController.logout);
 router.get('/me', authMiddleware, authController.me);
 router.post('/telegram', authController.telegramAuth);
+router.post('/max', authController.maxAuth);
 
 module.exports = router;
